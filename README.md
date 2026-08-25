@@ -1,4 +1,22 @@
-# How to install Plugin with SageTV 
+# OpenSageTV XMLTV Import Plugin
+
+This Apache-2.0 project builds reproducibly against SageTV Core using the common
+Ubuntu 26/OpenJDK 11 development image. It does not compile inside or delete
+data from a running SageTV server.
+
+Run `./opensagetv-dev.sh xmltv` from the sibling `opensagetv-build-env`
+repository. On Windows use `powershell -NoProfile -ExecutionPolicy Bypass -File
+.\opensagetv-dev.ps1 xmltv`. Output is under `output/`.
+
+Installation is optional and remains inactive until a user selects XMLTV and
+configures a provider. Example properties are packaged unchanged.
+
+## Legacy installation notes
+
+The upstream notes below are retained for reference. The destructive legacy
+clean script is not part of the supported build.
+
+## How to install Plugin with SageTV 
 1.  Stop SageTV Server
 2.  Rename on add/modify/ xmltv_EXAMPLE.properties examples
 3.  Copy all files and folder contents(not folder) of folder SAGETV_SERVER_ROOT to SageTV folder.  Only Jar and *.properties are required if not compiling required

@@ -62,7 +62,18 @@ public class XMLInputStreamFilter extends InputStream {
 				ByteArrayOutputStream bout = new ByteArrayOutputStream();
 				bout.write('#');
 				while (';' != (b = nextByte())) {
+					// A truncated or unreasonably long character reference must not
+					// spin forever and exhaust the SageTV JVM heap. Replay it as text
+					// and let the XML parser report the malformed entity.
+					if (b == -1) {
+						this.bin = new ByteArrayInputStream(bout.toByteArray());
+						return '&';
+					}
 					bout.write(b);
+					if (bout.size() >= 64) {
+						this.bin = new ByteArrayInputStream(bout.toByteArray());
+						return '&';
+					}
 				}
 				String s = bout.toString();
 				try {
