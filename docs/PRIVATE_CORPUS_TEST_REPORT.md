@@ -25,6 +25,19 @@ mapping paths could be exercised. Normal production time filtering is unchanged.
    show was inserted but before its airing was inserted. SeriesInfo derivation
    is now skipped when no numeric series prefix exists; the valid show and
    airing are retained.
+3. A series ID was incorrectly used as the programme/show ID, merging distinct
+   episodes. Series IDs are now inputs to deterministic fallback identity and
+   remain separate, matching the Schedule Direct data model.
+4. The zap2xml corpus uses separate `series`, `season`, and `episode` number
+   systems. They are now parsed and a committed two-episode fixture verifies
+   two distinct shows and two airings.
+
+The post-fix replay still reports 1,340 IDs whose title/subtitle/description or
+season/episode metadata differs within a file. 1,312 are concentrated in one
+historical XMLTV snapshot and most are provider-supplied IDs. They are reported,
+not rewritten: provider IDs can legitimately retain identity across metadata
+corrections, and silently changing them would diverge from Schedule Direct and
+damage existing SageTV database continuity.
 
 ## Source-data finding
 

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tv>
+  <channel id="test"><display-name>1</display-name><display-name>Identity Test</display-name></channel>
+  <programme start="20260825120000 +0000" stop="20260825123000 +0000" channel="test">
+    <title>Example Series</title><sub-title>First</sub-title>
+    <episode-num system="series">SH01234567</episode-num>
+    <episode-num system="season">1</episode-num><episode-num system="episode">1</episode-num>
+  </programme>
+  <programme start="20260825123000 +0000" stop="20260825130000 +0000" channel="test">
+    <title>Example Series</title><sub-title>Second</sub-title>
+    <episode-num system="series">SH01234567</episode-num>
+    <episode-num system="season">1</episode-num><episode-num system="episode">2</episode-num>
+  </programme>
+</tv>

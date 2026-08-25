@@ -10,3 +10,7 @@
 - Tested all 13 authorized XMLTV corpus files through the real importer API.
 - Preserved airings for valid short/non-numeric show IDs by safely skipping only unavailable SeriesInfo derivation.
 - Added a test-only clock override for deterministic historical guide replay.
+- Matched Schedule Direct identity semantics by keeping series IDs separate from programme IDs.
+- Added zap2xml `series`, `season`, and `episode` number-system support and a two-episode regression test.
+- Made fallback IDs charset-stable and fixed the one-actor movie bounds error.
+- Added a reusable corpus identity/field-coverage audit and documented collision policy.

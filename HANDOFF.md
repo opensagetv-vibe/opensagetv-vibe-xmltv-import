@@ -12,3 +12,7 @@ and should be reduced incrementally with representative XML fixtures.
 
 See `docs/PRIVATE_CORPUS_TEST_REPORT.md` for the 13-file, 323,682-programme
 compatibility run. Private inputs are intentionally not retained.
+
+See `docs/SHOW_ID_AUDIT.md` for the Schedule Direct comparison, identity
+precedence, collision policy, and corpus field-coverage findings. Run
+`python3 tests/audit_xmltv_ids.py /path/to/xmltvdata` for aggregate diagnostics.

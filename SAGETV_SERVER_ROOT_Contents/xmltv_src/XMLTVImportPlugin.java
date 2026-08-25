@@ -135,6 +135,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
@@ -1691,7 +1692,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
                 this.show.episodes = toInt(matcher.group(4), 0);
                 this.show.part = toInt(matcher.group(5), -1) + 1; // 0-based
                 this.show.parts = toInt(matcher.group(6), 0);
-                if (this.show.season > 0 || this.show.episode > 0  && this.show.freeFormEpisodeNumber!=null) {
+                if (this.show.season > 0 || this.show.episode > 0) {
                     // Create a free-form version of the episode number.
                     StringBuffer sb = new StringBuffer();
                     if (this.show.season > 0) {
@@ -1734,6 +1735,14 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 					}				
         } else if ("dd_progid".equals(this.system)) {
             this.show.showId = aEpisodeNumber.replaceFirst("\\.", ""); 
+		} else if ("series".equals(this.system)) {
+			// Some zap2xml feeds provide the series, season and episode as
+			// separate episode-num elements. A series ID is not a show ID.
+			this.show.seriesId = aEpisodeNumber;
+		} else if ("season".equals(this.system)) {
+			this.show.season = toInt(aEpisodeNumber, -1);
+		} else if ("episode".equals(this.system)) {
+			this.show.episode = toInt(aEpisodeNumber, -1);
 		//tms and pluto here from previous versions.  Other custom can be set in .properties	
 		} else if 	(	("tms".equals(this.system)) || 
 						("plutod".equals(this.system))||
@@ -1762,7 +1771,14 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * @return the resulting int.
      */
     private static final int toInt(String aString, int aDefault) {
-        return aString == null ? aDefault : Integer.parseInt(aString);
+        if (aString == null) {
+            return aDefault;
+        }
+        try {
+            return Integer.parseInt(aString.trim());
+        } catch (NumberFormatException e) {
+            return aDefault;
+        }
     }
 
     /**
@@ -2533,10 +2549,6 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
         if (this.show.showId != null) {
             return this.show.showId;
         }
-		if (this.show.seriesId != null) {
-			this.show.showId=this.show.seriesId;
-            return this.show.showId;
-        }
         String episodeSuffix;
         String showId = null;
         if (this.show.season > 0 || this.show.episode > 0) {
@@ -2567,23 +2579,29 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 
         // Now generate a number that is unique to the show.
         CRC32 crc32 = new CRC32();
+        // Schedule Direct keeps series and programme IDs separate. Include a
+        // provider series ID as identity input, but never use it directly as
+        // the show ID because that merges every episode in the series.
+        if (this.show.seriesId != null) {
+            crc32.update(this.show.seriesId.toLowerCase().getBytes(StandardCharsets.UTF_8));
+        }
         if (this.show.title != null) {
-            crc32.update(this.show.title.toLowerCase().getBytes());
+            crc32.update(this.show.title.toLowerCase().getBytes(StandardCharsets.UTF_8));
         }
         boolean uidGenerated = !episodeSuffix.equals("0000");
         if (this.show.episodeName != null) {
-            crc32.update(this.show.episodeName.toLowerCase().getBytes());
+            crc32.update(this.show.episodeName.toLowerCase().getBytes(StandardCharsets.UTF_8));
             uidGenerated = true;
         } else if ("Movie".equals(aCategory)) {
             String director = this.show.getDirector();
             if (director != null) {
                 // For a movie without an episode name the director
                 // name can be enough to identify the show.
-                crc32.update(director.toLowerCase().getBytes());
+                crc32.update(director.toLowerCase().getBytes(StandardCharsets.UTF_8));
                 uidGenerated = true;
             } else if (this.show.year != null) {
                 // The year might be enough to identify the movie.
-                crc32.update(this.show.year.toLowerCase().getBytes());
+                crc32.update(this.show.year.toLowerCase().getBytes(StandardCharsets.UTF_8));
                 uidGenerated = true;
             } else {
                 // The first two actors might be enough to identify 
@@ -2591,17 +2609,17 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
                 List actors = this.show.getLeadActors();
                 if (!actors.isEmpty()) {
                     crc32.update(((String) actors.get(0)).toLowerCase()
-                            .getBytes());
+                            .getBytes(StandardCharsets.UTF_8));
                     uidGenerated = true;
-                    if (actors.size() > 0) {
+                    if (actors.size() > 1) {
                         crc32.update(((String) actors.get(1)).toLowerCase()
-                                .getBytes());
+                                .getBytes(StandardCharsets.UTF_8));
                     }
                 }
             }
         }
         if (!uidGenerated) {
-            crc32.update(DF_SECONDS.format(this.show.start).getBytes());
+            crc32.update(DF_SECONDS.format(this.show.start).getBytes(StandardCharsets.UTF_8));
         }
         showId += checksumToShowId(crc32.getValue()) + episodeSuffix;
 
