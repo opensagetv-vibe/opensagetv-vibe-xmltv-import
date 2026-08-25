@@ -9,3 +9,6 @@ or properties. Runtime installation is optional and does not force an EPG key.
 
 Legacy raw-collection warnings are recorded in `output/test-results/javac.log`
 and should be reduced incrementally with representative XML fixtures.
+
+See `docs/PRIVATE_CORPUS_TEST_REPORT.md` for the 13-file, 323,682-programme
+compatibility run. Private inputs are intentionally not retained.

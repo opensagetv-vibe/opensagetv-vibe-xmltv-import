@@ -206,6 +206,9 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
     private static PrintStream sXmltvLogPrinter;
 	//The number of milliseconds that a log should be kept. (48 hours)
     private static final long LOG_TIMEOUT = 1000 * 60 * 60 * 48;
+	private static long currentTimeMillis() {
+		return Long.getLong("xmltv.test.currentTimeMillis", System.currentTimeMillis());
+	}
 	//Characters used to encode a 32 bit checksum into 6 bytes.
     private static final char[] SHOWID_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz@#".toCharArray();
 	//Help field for translating collections to arrays.
@@ -665,7 +668,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      */
     private synchronized static final void readConfigurations() {
         // Reset the entire configuration.
-        sConfigurationsTimestamp = System.currentTimeMillis();
+        sConfigurationsTimestamp = currentTimeMillis();
         sPropertiesFiles = new HashMap();
         sProviders = new TreeMap();
 		List<String> listConfigFileNames=new ArrayList<>(); ;
@@ -2080,7 +2083,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      */
     private final void addShowToGuide() {
         if (this.channel != null
-                && this.show.start.getTime() > (System.currentTimeMillis()-(8*3600000))
+                && this.show.start.getTime() > (currentTimeMillis()-(8*3600000))
                 && this.show.end != null
                 && this.show.start.before(this.show.end)) {//Add show if it is upto 8 hours previous
             
@@ -2334,10 +2337,15 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 					
 					
 					String strShowId=showId.replaceAll("[^0-9]", "").replaceAll("^0+(?!$)","");
-					strShowId=strShowId.substring(0, strShowId.length() - 4);
 					
 					try
 					{
+						// Series IDs use the numeric Show ID prefix without the final
+						// four episode digits. Some valid XMLTV sources provide short
+						// or non-numeric IDs; those shows still need their Airings and
+						// simply cannot produce SageTV SeriesInfo from this heuristic.
+						if (strShowId.length() <= 4) throw new NumberFormatException("show ID has no series prefix");
+						strShowId=strShowId.substring(0, strShowId.length() - 4);
 						//Need to fix: this for other cases
 						//seriesID is normally a string and this needs to be int?????WTF
 						//This will fail if string >=2147483648 
