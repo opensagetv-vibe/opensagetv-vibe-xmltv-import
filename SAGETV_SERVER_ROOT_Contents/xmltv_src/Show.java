@@ -67,17 +67,17 @@ public class Show {
     /**
      * The description.
      */
-    List descriptions = new LinkedList();
+    List<String> descriptions = new LinkedList<String>();
 
     /**
      * The people.
      */
-    List people = new LinkedList();
+    List<String> people = new LinkedList<String>();
 	
 	  /**
      * The characters.
      */
-    List characters = new LinkedList();
+    List<String> characters = new LinkedList<String>();
 
     /**
      * The roles of the people.
@@ -97,7 +97,7 @@ public class Show {
     /**
      * The category.
      */
-    LinkedHashSet categories = new LinkedHashSet();
+    LinkedHashSet<String> categories = new LinkedHashSet<String>();
 
     /**
      * The spoken language.
@@ -112,7 +112,7 @@ public class Show {
     /**
      * The countries where the movie was made.
      */
-    Set countries = new LinkedHashSet();
+    Set<String> countries = new LinkedHashSet<String>();
 
     /**
      * The free form episode number.
@@ -209,7 +209,7 @@ public class Show {
     /**
      * The expanded ratings.
      */
-    Set expandedRatings = new LinkedHashSet();
+    Set<String> expandedRatings = new LinkedHashSet<String>();
 
     /**
      * The number of stars.
@@ -278,7 +278,7 @@ public class Show {
         byte[] r = this.roles.toByteArray();
         for (int i = 0; i < r.length; ++i) {
             if (r[i] == EPGDBPublic.DIRECTOR_ROLE) {
-                return (String) this.people.get(i);
+                return this.people.get(i);
             }
         }
         return null;
@@ -290,8 +290,8 @@ public class Show {
      * 
      * @return the lead actors.
      */
-    List getLeadActors() {
-        LinkedList list = new LinkedList();
+    List<String> getLeadActors() {
+        LinkedList<String> list = new LinkedList<String>();
         byte[] r = this.roles.toByteArray();
         for (int i = 0; i < r.length; ++i) {
             switch (r[i]) {

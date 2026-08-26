@@ -1,3 +1,11 @@
+##3.3 08/26/2026
+1. Extracted generated Show-ID creation into a separately tested component while preserving exact legacy IDs by default.
+2. Added opt-in provider-scoped Show-ID v2 with SHA-256 identities, persistent atomic mappings, and deterministic collision handling.
+3. Kept generated v2 IDs compatible with SageTV's numeric SeriesInfo lookup convention and left explicit provider IDs unchanged.
+4. Added xmltv.show_id.display=description or bonus so administrators can inspect final IDs in SageTV; the default is none.
+5. Added regressions for legacy compatibility, provider isolation, persistence, collisions, SeriesInfo linkage, and display modes.
+6. Removed the obsolete destructive build helper that stopped SageTV and deleted server data.
+
 ##V2.0  01/13/2022
 1.  Add code if display-name or channel id number(example 5, 5.1 5-1) then add as the channel number for import.  Examples below import as channel 2.1 and 1162 respectively below
 ##2.02  01/14/2022

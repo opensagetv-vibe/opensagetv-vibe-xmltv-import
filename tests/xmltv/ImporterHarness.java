@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.TreeSet;
 import sage.EPGDBPublic2;
 
 public final class ImporterHarness {
@@ -14,15 +15,23 @@ public final class ImporterHarness {
     final Map<String,Long> calls = new HashMap<>();
     final Map<String,String> identities = new HashMap<>();
     final Set<String> conflicts = new HashSet<>();
+    final Set<String> showIds = new TreeSet<>();
+    final long[] displayed = new long[2];
     EPGDBPublic2 db = (EPGDBPublic2) Proxy.newProxyInstance(
         ImporterHarness.class.getClassLoader(), new Class<?>[]{EPGDBPublic2.class}, (p,m,a) -> {
           calls.put(m.getName(), calls.getOrDefault(m.getName(), 0L) + 1);
           if ("addShowPublic2".equals(m.getName())) {
             String id=String.valueOf(a[12]);
+            showIds.add(id);
             String fingerprint=String.valueOf(a[0])+"\u001f"+String.valueOf(a[1])+"\u001f"+
                 String.valueOf(a[2])+"\u001f"+String.valueOf(a[15])+"\u001f"+String.valueOf(a[16]);
             String previous=identities.putIfAbsent(id,fingerprint);
             if (previous!=null && !previous.equals(fingerprint)) conflicts.add(id);
+            String marker="Show ID: "+id;
+            if (a[2] != null && String.valueOf(a[2]).contains(marker)) displayed[0]++;
+            if (a[11] instanceof String[]) {
+              for (String bonus : (String[])a[11]) if (marker.equals(bonus)) displayed[1]++;
+            }
           }
           Class<?> r=m.getReturnType();
           if (r==boolean.class) return true;
@@ -36,7 +45,7 @@ public final class ImporterHarness {
     long channels=calls.getOrDefault("addChannelPublic",0L);
     long shows=calls.getOrDefault("addShowPublic2",0L)+calls.getOrDefault("addShowPublic",0L);
     long airings=calls.getOrDefault("addAiringPublic2",0L)+calls.getOrDefault("addAiringPublic",0L);
-    System.out.printf("result=%s channels=%d shows=%d uniqueShowIds=%d conflictingShowIds=%d airings=%d calls=%s file=%s%n",ok,channels,shows,identities.size(),conflicts.size(),airings,calls,new File(args[0]).getName());
+    System.out.printf("result=%s channels=%d shows=%d uniqueShowIds=%d conflictingShowIds=%d airings=%d showIdDescriptions=%d showIdBonus=%d ids=%s calls=%s file=%s%n",ok,channels,shows,identities.size(),conflicts.size(),airings,displayed[0],displayed[1],showIds,calls,new File(args[0]).getName());
     if (!ok || channels==0) System.exit(2);
     if (shows != airings) System.exit(3);
   }

@@ -142,13 +142,11 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.Files;
-import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.lang.ref.SoftReference;
-import java.text.DecimalFormat;
 import java.text.MessageFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -195,7 +193,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
         ContentHandler, ErrorHandler {
 
     //The newline sequence.
-    private static final String ProgramVersion = "3.2";
+    private static final String ProgramVersion = "3.3";
 	//The newline sequence.
     private static final String NEWLINE = System.getProperty("line.separator");
 	//The date format used for logging. 
@@ -224,8 +222,6 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 	private static long currentTimeMillis() {
 		return Long.getLong("xmltv.test.currentTimeMillis", System.currentTimeMillis());
 	}
-	//Characters used to encode a 32 bit checksum into 6 bytes.
-    private static final char[] SHOWID_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz@#".toCharArray();
 	//Help field for translating collections to arrays.
     private static final String[] DUMMY_STRING_ARRAY = new String[0];
 	//The default properties.
@@ -237,8 +233,6 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 	private static final SimpleDateFormat DF_MINUTES = new SimpleDateFormat("yyyyMMddHHmm Z");
 	//The dateformat for parsing dates without time.
     private static final SimpleDateFormat DF_DAY = new SimpleDateFormat("yyyyMMdd");
-	//Formatting help.
-    private static final DecimalFormat FORMAT_00 = new DecimalFormat("00");
     //The regular expression for lowercase words <br>
     //(Words containing only lowercase unicode characters).
     private static final Pattern LOWERCASE_WORDS_PATTERN = Pattern.compile(" ([\\p{Ll}]+)");
@@ -305,6 +299,8 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
     private String ratingSystem;
 	//Used to store current ProviderId being processed
 	private String initProviderId;
+	//Generated Show-ID strategy and persistent v2 mapping state.
+	private ShowIdGenerator showIdGenerator;
 	
 	private static boolean xLogDefaults=true;
 	private static boolean xLogConfiguration=true;
@@ -334,6 +330,9 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		defaults.put("sagetv.channel.IconMaxWidth", Integer.toString(DEFAULT_CHANNEL_ICON_MAX_WIDTH));
 		defaults.put("sagetv.channel.IconMaxHeight", Integer.toString(DEFAULT_CHANNEL_ICON_MAX_HEIGHT));
 		defaults.put("xmltv.programme.episode-num.system.showID_Value", "");
+		defaults.put("xmltv.show_id.strategy", ShowIdGenerator.LEGACY);
+		defaults.put("xmltv.show_id.v2.map_file", ShowIdGenerator.DEFAULT_V2_MAP_FILE);
+		defaults.put("xmltv.show_id.display", "none");
 		defaults.put("log.defaults", "true");
 		defaults.put("log.configuration", "true");
 		defaults.put("log.channel", "true");
@@ -520,6 +519,14 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		
 		
 		this.init.ProgrammeEpisodeNumSystemShowID_Value = getProperty(aConfiguration, "xmltv.programme.episode-num.system.showID_Value");
+		this.init.ShowIdDisplay = getProperty(aConfiguration, "xmltv.show_id.display");
+		if (this.init.ShowIdDisplay == null) this.init.ShowIdDisplay = "none";
+		this.init.ShowIdDisplay = this.init.ShowIdDisplay.trim().toLowerCase();
+		if (!this.init.ShowIdDisplay.equals("none")
+				&& !this.init.ShowIdDisplay.equals("description")
+				&& !this.init.ShowIdDisplay.equals("bonus")) {
+			throw new IllegalArgumentException("xmltv.show_id.display must be none, description, or bonus");
+		}
 		
 		
 		this.initProviderId=getProperty(aConfiguration, "provider.id");
@@ -563,6 +570,26 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 
         this.init.splitMovieDetectTime = Long.parseLong(getProperty(aConfiguration,
                 "split.movie.detect.time"));
+		String showIdMapFile = getProperty(aConfiguration, "xmltv.show_id.v2.map_file");
+		if (showIdMapFile == null || showIdMapFile.trim().length() == 0) {
+			showIdMapFile = ShowIdGenerator.DEFAULT_V2_MAP_FILE;
+		}
+		String configuredProviderId = getProperty(aConfiguration, "provider.id");
+		String providerNamespace = configuredProviderId != null
+				&& configuredProviderId.trim().length() > 0
+				? "id:" + configuredProviderId.trim()
+				: "name:" + getProperty(aConfiguration, "provider.name");
+		try {
+			this.showIdGenerator = new ShowIdGenerator(
+					getProperty(aConfiguration, "xmltv.show_id.strategy"),
+					providerNamespace, new File(showIdMapFile),
+					this.init.splitMovieDetectTime);
+		} catch (IOException e) {
+			throw new IllegalStateException("Unable to initialize XMLTV Show-ID mappings", e);
+		}
+		log("Show-ID strategy: " + this.showIdGenerator.getStrategy()
+				+ (ShowIdGenerator.V2.equals(this.showIdGenerator.getStrategy())
+						? "; mapping file: " + new File(showIdMapFile).getAbsolutePath() : ""));
 
         this.init.maxStars = getIntProperty(aConfiguration, "max.stars");
 
@@ -626,6 +653,14 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * Exit for a configuration.
      */
     private final void exitConfiguration() {
+		if (this.showIdGenerator != null) {
+			try {
+				this.showIdGenerator.flush();
+			} catch (IOException e) {
+				log("Unable to persist XMLTV v2 Show-ID mappings: " + e);
+			}
+			this.showIdGenerator = null;
+		}
         // Resetting these objects prevents use of them out of context.
         // (also prevents a minor memory leak).
         this.configuration = null;
@@ -2475,7 +2510,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
                     episodeName = sb.toString();
                 }
 
-                String desc = this.show.descriptions.size() > 0 ? (String) this.show.descriptions.get(0) : null;
+                String desc = this.show.descriptions.size() > 0 ? this.show.descriptions.get(0) : null;
 				
 				String category = categories.size() > 0 ? (String) categories.get(0) : null;
                 String subCategory = null;
@@ -2489,7 +2524,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
                     subCategory = sb.toString();
                 }
 
-                List bonus = new LinkedList();
+                List<String> bonus = new LinkedList<String>();
                 if (this.show.descriptions.size() > 1) {
                     bonus.addAll(this.show.descriptions.subList(1, this.show.descriptions.size()));
 					}
@@ -2542,7 +2577,16 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
                     bonus.add(this.show.parts + " parts");
                 }
 
-                String showId = generateShowId(category);
+				ShowIdGenerator.Result showIdentity = this.showIdGenerator.generate(
+						this.show, category, this.channel);
+				String showId = showIdentity.getExternalId();
+				String showIdText = "Show ID: " + showId;
+				if (this.init.ShowIdDisplay.equals("description")) {
+					desc = desc == null || desc.length() == 0
+							? showIdText : desc + NEWLINE + NEWLINE + showIdText;
+				} else if (this.init.ShowIdDisplay.equals("bonus")) {
+					bonus.add(showIdText);
+				}
 				
 				int stationId = this.channel.STVstationID.intValue();
 				long start = this.show.start.getTime();
@@ -2615,26 +2659,16 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 					*/
 					
 					
-					String strShowId=showId.replaceAll("[^0-9]", "").replaceAll("^0+(?!$)","");
-					
 					try
 					{
-						// Series IDs use the numeric Show ID prefix without the final
-						// four episode digits. Some valid XMLTV sources provide short
-						// or non-numeric IDs; those shows still need their Airings and
-						// simply cannot produce SageTV SeriesInfo from this heuristic.
-						if (strShowId.length() <= 4) throw new NumberFormatException("show ID has no series prefix");
-						strShowId=strShowId.substring(0, strShowId.length() - 4);
-						//Need to fix: this for other cases
-						//seriesID is normally a string and this needs to be int?????WTF
-						//This will fail if string >=2147483648 
-						int seriesID = Integer.parseInt(strShowId);
+						Integer seriesID = showIdentity.getSeriesId();
+						if (seriesID == null) throw new NumberFormatException("show ID has no numeric series mapping");
 						
 						//`.properties` option 'sagetv.show.Icon'	
 						String XMLTVicon="";
 						if(this.init.SagetvShowIcon)XMLTVicon=this.show.xmltvIcon;
 						
-						this.guide.addSeriesInfoPublic(seriesID, title,"","","","","","","",XMLTVicon,toStringArray(this.show.people),toStringArray(this.show.characters));  
+						this.guide.addSeriesInfoPublic(seriesID.intValue(), title,"","","","","","","",XMLTVicon,toStringArray(this.show.people),toStringArray(this.show.characters));
 						
 					}
 					catch(Throwable t)
@@ -2803,110 +2837,6 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
     }
 
     /**
-     * Generates a more or less unique show id in the Zap2it format.
-     *  
-     * @param aCategory the primary category after translation.
-     * @return the showId.
-     */
-    private final String generateShowId(String aCategory) {
-        if (this.show.showId != null) {
-            return this.show.showId;
-        }
-        String episodeSuffix;
-        String showId = null;
-        if (this.show.season > 0 || this.show.episode > 0) {
-            episodeSuffix = this.show.season > 0 ? FORMAT_00
-                    .format(this.show.season - 1) : "00";
-            episodeSuffix += this.show.episode > 0 ? FORMAT_00
-                    .format(this.show.episode) : "00";
-            // Season 1 episode 1 should render into "0001" allowing 
-            // Malore's series Premieres & Specials to trigger on 
-            // the episode ID.
-            showId = "EP";
-        } else if (this.show.freeFormEpisodeNumber != null) {
-            episodeSuffix = this.show.freeFormEpisodeNumber;
-            // Make certain that we have at least 4 characters, so 
-            // Cayar's episode number in episode name feature 
-            // doesn't barf.
-            for (int i = this.show.freeFormEpisodeNumber.length(); i < 4; ++i) {
-                episodeSuffix += ' ';
-            }
-            showId = "SH";
-        } else {
-            episodeSuffix = "0000";
-            showId = "SH";
-        }
-        if (this.show.part > 0) {
-            episodeSuffix += "-" + this.show.part;
-        }
-
-        // Now generate a number that is unique to the show.
-        CRC32 crc32 = new CRC32();
-        // Schedule Direct keeps series and programme IDs separate. Include a
-        // provider series ID as identity input, but never use it directly as
-        // the show ID because that merges every episode in the series.
-        if (this.show.seriesId != null) {
-            crc32.update(this.show.seriesId.toLowerCase().getBytes(StandardCharsets.UTF_8));
-        }
-        if (this.show.title != null) {
-            crc32.update(this.show.title.toLowerCase().getBytes(StandardCharsets.UTF_8));
-        }
-        boolean uidGenerated = !episodeSuffix.equals("0000");
-        if (this.show.episodeName != null) {
-            crc32.update(this.show.episodeName.toLowerCase().getBytes(StandardCharsets.UTF_8));
-            uidGenerated = true;
-        } else if ("Movie".equals(aCategory)) {
-            String director = this.show.getDirector();
-            if (director != null) {
-                // For a movie without an episode name the director
-                // name can be enough to identify the show.
-                crc32.update(director.toLowerCase().getBytes(StandardCharsets.UTF_8));
-                uidGenerated = true;
-            } else if (this.show.year != null) {
-                // The year might be enough to identify the movie.
-                crc32.update(this.show.year.toLowerCase().getBytes(StandardCharsets.UTF_8));
-                uidGenerated = true;
-            } else {
-                // The first two actors might be enough to identify 
-                // the movie.
-                List actors = this.show.getLeadActors();
-                if (!actors.isEmpty()) {
-                    crc32.update(((String) actors.get(0)).toLowerCase()
-                            .getBytes(StandardCharsets.UTF_8));
-                    uidGenerated = true;
-                    if (actors.size() > 1) {
-                        crc32.update(((String) actors.get(1)).toLowerCase()
-                                .getBytes(StandardCharsets.UTF_8));
-                    }
-                }
-            }
-        }
-        if (!uidGenerated) {
-            crc32.update(DF_SECONDS.format(this.show.start).getBytes(StandardCharsets.UTF_8));
-        }
-        showId += checksumToShowId(crc32.getValue()) + episodeSuffix;
-
-        // Add a sequence number to the id if the show is the second part of a 
-        // movie.
-        if (this.init.splitMovieDetectTime > 0 && "Movie".equals(aCategory)) {
-            String baseId = showId;
-            int count = 0;
-            while (this.channel.movieIds.containsKey(showId)
-                    && this.show.start.getTime()
-                            - ((Date) this.channel.movieIds.get(showId))
-                                    .getTime() < this.init.splitMovieDetectTime) {
-                log("diff = "
-                        + (this.show.start.getTime() - ((Date) this.channel.movieIds
-                                .get(showId)).getTime()));
-                showId = baseId + "-" + ++count;
-            }
-            this.channel.movieIds.put(showId, this.show.start);
-        }
-
-        return showId;
-    }
-
-    /**
      * Creates a string array from a collection.
      * 
      * @param aCollection the collection that should be converted.
@@ -2998,23 +2928,6 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 
     public final void warning(SAXParseException aException) throws SAXException {
         log(aException);
-    }
-
-    /**
-     * Encode a 32 bit checksum into 6 bytes.
-     * 
-     * @param checksum
-     *            the checksum that should be encoded.
-     *            <p>
-     *            This is a long since Java doesn't have unsigned integers.
-     * @return the encoded checksum (always 6 characters wide).
-     */
-    private static final String checksumToShowId(long checksum) {
-        char[] chs = new char[6];
-        for (int i = 0; i < 6; ++i) {
-            chs[i] = SHOWID_CHARS[(int) ((checksum >> ((5 - i) * 6)) & 0x3fL)];
-        }
-        return new String(chs);
     }
 
     /**

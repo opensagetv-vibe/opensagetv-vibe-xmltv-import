@@ -27,10 +27,15 @@ The old `<series-id>` fallback merged all episodes carrying only a series ID.
 That is the largest correctness issue and is fixed. Generated CRC input now
 uses UTF-8 explicitly, so IDs do not vary with the host default charset.
 
-The importer still uses a 32-bit CRC in its legacy fallback format. A future
-opt-in ID format should use a wider digest and persist a migration strategy;
-changing it silently would disrupt favourites, watched state, and recording
-history. The corpus audit tool is `tests/audit_xmltv_ids.py`.
+The importer still uses a 32-bit CRC in its default legacy fallback format so
+existing favourites, watched state, and recording history remain compatible.
+An opt-in `v2` format now uses provider-scoped SHA-256 identity input and
+atomically persisted Show/Series mappings. Its emitted ID retains SageTV's
+`EP/SH + numeric SeriesInfo ID + four-digit episode token` convention so Core
+can still link series artwork and metadata. Hash-backed collision allocation is
+persisted rather than exposing non-numeric digest text that Core cannot parse.
+It is intended for clean providers or planned migrations and is never enabled
+implicitly. The corpus audit tool is `tests/audit_xmltv_ids.py`.
 
 Some historical provider files reuse explicit IDs while descriptions or other
 metadata differ. These are reported but not rewritten: an importer cannot know

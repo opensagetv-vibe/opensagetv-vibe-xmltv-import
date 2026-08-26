@@ -116,6 +116,9 @@ public final class Init {
 	  <episode-num system="custom_id">MV01884821.0000</episode-num>
      */
 	String ProgrammeEpisodeNumSystemShowID_Value;
+
+	/** Optional location where the generated Show ID is exposed in SageTV. */
+	String ShowIdDisplay;
 	
 	/**
      sagetv.ShowIcon

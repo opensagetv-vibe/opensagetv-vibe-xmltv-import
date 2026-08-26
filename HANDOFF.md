@@ -3,6 +3,7 @@
 Run `opensagetv-dev.sh xmltv` from the sibling build-environment repository.
 The build consumes the locally built Core `Sage.jar` and writes the plugin JAR,
 tests, warning log, and configuration examples under `output/`.
+The current source and locally built plugin report version 3.3.
 
 The supported build never starts/stops SageTV and never removes `Wiz.*`, logs,
 or properties. Runtime installation is optional and does not force an EPG key.
@@ -13,6 +14,14 @@ Lineup`, allowing the setup UI to offer XMLTV before a provider file exists.
 The logger is initialized before provider enumeration, so an unconfigured
 plugin cannot fail with a null log target. The container owns the safe property
 upsert; the plugin JAR itself does not mutate `Sage.properties`.
+
+Generated identities now live in `ShowIdGenerator`. `legacy` remains the
+default and is protected by exact-output tests. The opt-in `v2` strategy uses
+provider-scoped SHA-256 identities and atomically persists show/series mappings
+to `xmltv-show-id-v2.properties` by default. Preserve that file during backup
+or restore. Never silently switch an established lineup to v2. The optional
+`xmltv.show_id.display=description|bonus` setting exposes final IDs for
+commissioning and defaults to `none`.
 
 Channel-logo downloading accepts both `sagetv.channel.IconDownload` and the
 legacy `xmltv.channel.IconDownload` property. `ChannelIconDownloadTest` covers
@@ -28,8 +37,9 @@ width or height exceeded 256 pixels, and no atomic-write temporary files
 remained. The representative `WBBMDT` icon changed from 3200x2400 RGBA to
 256x192 RGBA.
 
-Legacy raw-collection warnings are recorded in `output/test-results/javac.log`
-and should be reduced incrementally with representative XML fixtures.
+The version 3.3 build records 26 legacy raw-collection warnings in
+`output/test-results/javac.log`, reduced from 49 during this refactor. They
+should continue to be reduced incrementally with representative XML fixtures.
 
 See `docs/PRIVATE_CORPUS_TEST_REPORT.md` for the 13-file, 323,682-programme
 compatibility run. Private inputs are intentionally not retained.

@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- Extracted generated Show-ID logic from the SAX importer into a separately
+  tested identity component while preserving exact legacy CRC32 outputs.
+- Added opt-in `xmltv.show_id.strategy=v2`, using provider-scoped SHA-256
+  identities with atomic persistent Show/Series mapping and deterministic
+  collision handling. Explicit provider IDs remain authoritative.
+- Kept v2 external IDs compatible with SageTV Core's numeric SeriesInfo lookup
+  convention while retaining the full SHA-256 identity in the mapping file.
+- Added optional `xmltv.show_id.display=description|bonus` diagnostics so the
+  final external ID can be inspected in SageTV; the default remains `none`.
+- Added legacy compatibility, v2 determinism, provider isolation, mapping
+  reload, ambiguous-field, invalid-strategy, and UI-display regressions.
+- Removed the obsolete in-container clean-build script that stopped SageTV and
+  deleted `Wiz.*`, logs, and server text files; supported builds remain
+  non-destructive in the unified development container.
+- Added concrete String types to Show identity/description/people collections
+  and the split-movie map, reducing unchecked operations in the refactored path.
 - Restored the legacy `xmltv.channel.IconDownload` configuration alias; the
   newer `sagetv.channel.IconDownload` name takes precedence when both exist.
 - Replaced extension-based channel-logo writes with validated downloads and

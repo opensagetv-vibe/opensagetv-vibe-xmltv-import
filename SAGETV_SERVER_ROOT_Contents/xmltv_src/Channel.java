@@ -26,6 +26,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Date;
 
 /**
  * POJO for channel data.
@@ -75,7 +76,7 @@ public final class Channel {
     /**
      * The guids that have been used for movies on this channel.
      */
-    HashMap movieIds = new HashMap();
+    HashMap<String, Date> movieIds = new HashMap<String, Date>();
 
     /** 
      * Creates a new instance of Channel
