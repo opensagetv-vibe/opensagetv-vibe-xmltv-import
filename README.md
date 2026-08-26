@@ -8,6 +8,11 @@ Run `./opensagetv-dev.sh xmltv` from the sibling `opensagetv-build-env`
 repository. On Windows use `powershell -NoProfile -ExecutionPolicy Bypass -File
 .\opensagetv-dev.ps1 xmltv`. Output is under `output/`.
 
+Version 3.4 treats import completion truthfully: an unavailable or malformed
+feed, rejected SageTV database call, failed required `run.before` command, or
+incomplete configuration makes `updateGuide()` return `false`. The existing
+lineup is not replaced after a failed import.
+
 Installation registers `xmltv.XMLTVImportPlugin` so XMLTV appears as an EPG
 option without any legacy SageTV license key. No lineup is selected and no
 guide import occurs until the user chooses a provider. If configuration is
@@ -97,6 +102,45 @@ xmltv.show_id.display=description
 
 Valid values are `none` (default), `description`, and `bonus`. Disable the
 display setting after validation if you do not want IDs shown in guide text.
+
+Audit a feed before changing an established lineup:
+
+```bash
+./scripts/show-id-audit.sh --provider-id 999 /path/to/guide.xml > show-id-audit.tsv
+```
+
+The audit compares exact legacy IDs with the opt-in v2 IDs and reports
+collisions without writing SageTV data. It is read-only by default; add
+`--map FILE --write-map` only when intentionally creating a v2 mapping.
+
+## Feed acquisition and parsing
+
+`xmltv.files` accepts local paths, `file:` URLs, and HTTP(S) URLs. Remote feeds
+have bounded connect/read time, byte, and redirect limits, support gzip and
+conditional ETag/Last-Modified requests, and update the local cache atomically.
+A failed download preserves the previous cache for diagnosis but fails the
+current import instead of silently loading stale guide data.
+
+XML parsing disables DTDs and external entities. The default validation pass
+detects truncated or hostile input before SageTV database calls, and element
+text has a configurable memory bound. The relevant defaults are:
+
+```properties
+xmltv.download.connect_timeout_ms=10000
+xmltv.download.read_timeout_ms=30000
+xmltv.download.max_bytes=268435456
+xmltv.download.max_redirects=5
+xmltv.validate_before_import=true
+xmltv.parser.max_element_chars=4194304
+xmltv.language.preferred=
+run.before.timeout_ms=300000
+run.before.fail_on_error=true
+run.before.log_command=false
+```
+
+`xmltv.language.preferred` selects a matching title, subtitle, and description
+when a feed supplies alternatives. `run.before` output is drained into
+`xmltv.log`; its command text is redacted unless logging is explicitly enabled.
 
 # Examples `.properties` for channel
 ![](https://github.com/jzhvymetal/SageTv_XMLTVImportPlugin/blob/main/SAGETV_SERVER_ROOT_Contents/xmltv_src/DOC/PROP_Channel.png)

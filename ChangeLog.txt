@@ -1,3 +1,14 @@
+##3.4 08/26/2026
+1. Guide imports now return failure for required-stage errors and never replace a lineup after a partial import.
+2. Added bounded HTTP(S), file, gzip, conditional-cache, redirect, and atomic feed acquisition.
+3. Hardened SAX parsing against DOCTYPE, XXE, external DTD/schema access, truncated documents, and oversized element text.
+4. Extracted configuration, downloader, parser, date, command, mapping, Sage API, and Show-ID audit components.
+5. Added strict java.time parsing and safe run.before timeouts, output draining, exit checks, and process teardown.
+6. Fixed preferred-language metadata, movie/TV ratings, subtitle flags, previously-shown dates, short episode values, and repeated multi-source channels.
+7. Added dry-run legacy/v2 Show-ID comparison with collision detection and optional explicit map creation.
+8. Added hostile, truncated, HTTP, failure-injection, metadata, provider-reload, multi-source, and 500-channel stress tests.
+9. The Java 8-targeted OpenJDK 11 build now completes without prior unchecked raw-collection warnings.
+
 ##3.3 08/26/2026
 1. Extracted generated Show-ID creation into a separately tested component while preserving exact legacy IDs by default.
 2. Added opt-in provider-scoped Show-ID v2 with SHA-256 identities, persistent atomic mappings, and deterministic collision handling.

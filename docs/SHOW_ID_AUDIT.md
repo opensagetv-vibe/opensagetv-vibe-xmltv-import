@@ -21,6 +21,25 @@ The XMLTV importer now follows the same identity rule where the input permits:
 Changing valid provider IDs or globally namespacing them would create duplicate
 shows in existing SageTV databases, so this release deliberately does neither.
 
+## Migration audit command
+
+Build the plugin, then compare IDs without opening or modifying SageTV:
+
+```bash
+./scripts/show-id-audit.sh --provider-id 999 guide.xml > show-id-audit.tsv
+```
+
+Use the exact `provider.id` configured for the target lineup. If none is set,
+pass `--provider-name "XMLTV Lineup"`. The TSV contains source file, channel,
+start time, title, identity source, exact legacy ID, proposed v2 ID, and series
+ID. A summary and collision counts go to stderr.
+
+The command is a dry run by default: a missing mapping is read as empty and no
+mapping is created or changed. To test against an existing mapping, use
+`--map xmltv-show-id-v2.properties`. Add `--write-map` only when deliberately
+creating/updating that mapping. A v2 collision returns exit status 2; input or
+parse errors return non-zero.
+
 ## Collision and determinism findings
 
 The old `<series-id>` fallback merged all episodes carrying only a series ID.
@@ -35,7 +54,8 @@ atomically persisted Show/Series mappings. Its emitted ID retains SageTV's
 can still link series artwork and metadata. Hash-backed collision allocation is
 persisted rather than exposing non-numeric digest text that Core cannot parse.
 It is intended for clean providers or planned migrations and is never enabled
-implicitly. The corpus audit tool is `tests/audit_xmltv_ids.py`.
+implicitly. `ShowIdAudit` exercises the production generator; the independent
+corpus diagnostics tool remains `tests/audit_xmltv_ids.py`.
 
 Some historical provider files reuse explicit IDs while descriptions or other
 metadata differ. These are reported but not rewritten: an importer cannot know

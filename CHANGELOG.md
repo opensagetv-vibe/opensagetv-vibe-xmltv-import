@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Changed the guide-update contract to return failure for acquisition, parser,
+  command, or SageTV database errors and to withhold `setLineup` after any
+  partial failure.
+- Added bounded local/file/HTTP(S) feed acquisition with gzip detection,
+  redirect/status validation, ETag/Last-Modified caching, and atomic writes
+  that preserve the prior cache on failure.
+- Hardened every SAX parser against DOCTYPE, XXE, external DTD/schema access,
+  fatal-error continuation, truncated XML, and unbounded element text.
+- Extracted typed configuration, feed download, secure parsing, date parsing,
+  command execution, channel/programme mapping, and Sage guide-write adapters.
+- Replaced shared mutable date parsers with strict `java.time` parsing and made
+  importer parsing state instance-local.
+- Added bounded `run.before` execution with continuously drained output,
+  timeout/process teardown, checked exit status, and command redaction.
+- Fixed preferred-language selection, movie/TV parental ratings, subtitle
+  flags, `previously-shown` dates, short season/episode fields, multipart
+  bounds, provider reload/includes, and repeated channels across input files.
+- Added a read-only `ShowIdAudit` CLI comparing legacy and v2 identity, with an
+  explicit opt-in for writing a migration map and collision exit status.
+- Added hostile/truncated/metadata/multi-source/provider-collision fixtures,
+  HTTP acquisition tests, failure injection, and a 500-channel stress import.
+- Compiled with `javac --release 8`; the modernized build completes without the
+  prior raw-collection/unchecked compiler warnings.
 - Extracted generated Show-ID logic from the SAX importer into a separately
   tested identity component while preserving exact legacy CRC32 outputs.
 - Added opt-in `xmltv.show_id.strategy=v2`, using provider-scoped SHA-256

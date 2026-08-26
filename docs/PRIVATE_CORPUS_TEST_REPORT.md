@@ -1,8 +1,13 @@
 # XMLTV Private Corpus Compatibility Test
 
-Tested 2026-08-25 against every XML/XMLTV guide found in the authorized Unraid
-`appdata/xmltvdata` directory. Source files were mounted read-only, were not
-committed, and temporary copies were deleted after testing.
+Historically tested 2026-08-25 against every XML/XMLTV guide found in the
+authorized Unraid `appdata/xmltvdata` directory. Source files were mounted
+read-only, were not committed, and temporary copies were deleted after testing.
+
+These files are not retained in the repository and were not available for the
+version 3.4 modernization replay. The current committed suite uses synthetic
+fixtures and a generated stress lineup; the numbers below remain historical
+compatibility evidence rather than current 3.4 results.
 
 ## Result
 
