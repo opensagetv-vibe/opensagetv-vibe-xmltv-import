@@ -7,6 +7,13 @@ tests, warning log, and configuration examples under `output/`.
 The supported build never starts/stops SageTV and never removes `Wiz.*`, logs,
 or properties. Runtime installation is optional and does not force an EPG key.
 
+Provider discovery has an explicit regression test. With no configuration,
+`getLocalMarkets()` returns the stable placeholder provider `867507149 / XMLTV
+Lineup`, allowing the setup UI to offer XMLTV before a provider file exists.
+The logger is initialized before provider enumeration, so an unconfigured
+plugin cannot fail with a null log target. The container owns the safe property
+upsert; the plugin JAR itself does not mutate `Sage.properties`.
+
 Legacy raw-collection warnings are recorded in `output/test-results/javac.log`
 and should be reduced incrementally with representative XML fixtures.
 

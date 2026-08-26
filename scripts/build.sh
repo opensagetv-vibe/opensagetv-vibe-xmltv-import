@@ -14,9 +14,13 @@ javac -encoding UTF-8 -Xlint:deprecation -Xlint:unchecked -source 8 -target 8 \
   2>&1 | tee "$out/test-results/javac.log"
 javac -encoding UTF-8 -source 8 -target 8 -classpath "$out/classes:$sage_jar" \
   -d "$out/test-classes" "$root/tests/xmltv/XMLInputStreamFilterTest.java" \
-  "$root/tests/xmltv/ImporterHarness.java"
+  "$root/tests/xmltv/ImporterHarness.java" "$root/tests/xmltv/ProviderDiscoveryTest.java"
 java -classpath "$out/test-classes:$out/classes:$sage_jar" xmltv.XMLInputStreamFilterTest \
   | tee "$out/test-results/tests.log"
+provider_work="$(mktemp -d)"
+(cd "$provider_work"; java -classpath "$out/test-classes:$out/classes:$sage_jar" \
+  xmltv.ProviderDiscoveryTest) | tee -a "$out/test-results/tests.log"
+rm -rf "$provider_work"
 identity_work="$(mktemp -d)"
 trap 'rm -rf "$identity_work"' EXIT
 cp "$root/tests/fixtures/series-season-episode.xml" "$identity_work/identity.xml"

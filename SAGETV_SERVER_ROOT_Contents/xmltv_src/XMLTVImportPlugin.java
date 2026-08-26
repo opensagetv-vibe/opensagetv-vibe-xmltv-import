@@ -196,7 +196,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 	//The debug logging file.
     private static final File DEBUG_LOG_FILE = new File("xmltv_debug.log");
 	//The logging file.
-    private static File LOG_FILE;
+    private static File LOG_FILE = new File("xmltv.log");
 	//The XMLTV logging file.
     private static File XMLTV_LOG_FILE= new File("xmltv.log");
 	//The debug log writer.
@@ -216,6 +216,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
     private static final String[] DUMMY_STRING_ARRAY = new String[0];
 	//The default properties.
     private static final Properties DEFAULTS = createDefaults();
+    private static final String DEFAULT_PROVIDER_ID = "867507149";
 	//The dateformat for parsing XMLTV dates with seconds.
 	private static final SimpleDateFormat DF_SECONDS = new SimpleDateFormat("yyyyMMddHHmmss Z");
 	//The dateformat for parsing XMLTV dates without seconds.
@@ -726,6 +727,18 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
             configurations.add(configuration);
 			
         }
+
+        // Keep the plugin visible in SageTV before configuration. An installed
+        // EPG import JAR is a selectable provider, not a reason to fall back to
+        // the retired licensed SageTV EPG service. The placeholder uses the
+        // documented defaults and can be configured later.
+        if (sProviders.isEmpty()) {
+            Properties defaultConfiguration = new Properties(DEFAULTS);
+            List configurations = new LinkedList();
+            configurations.add(defaultConfiguration);
+            sProviders.put(DEFAULT_PROVIDER_ID, configurations);
+            log("No XMLTV provider configuration found; exposing the default XMLTV Lineup provider.");
+        }
     }
 
     /**
@@ -974,7 +987,8 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 
         } catch (Throwable t) {
             logXMLTV(t);
-            throw (Error) t;
+            if (t instanceof Error) throw (Error) t;
+            throw new RuntimeException("Unable to enumerate XMLTV local markets", t);
         } finally {
             cleanup();
         }
@@ -1046,7 +1060,8 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 
         } catch (Throwable t) {
             logXMLTV(t);
-            throw (Error) t;
+            if (t instanceof Error) throw (Error) t;
+            throw new RuntimeException("Unable to enumerate XMLTV providers", t);
         } finally {
             cleanup();
         }

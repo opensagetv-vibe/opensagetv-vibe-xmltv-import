@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Removed the obsolete SageTV EPG license expectation by registering the XMLTV import class whenever its JAR is installed.
+- Expose a safe default `XMLTV Lineup` provider when configuration is absent, keeping the plugin selectable during initial setup.
 - Preserved upstream history and tags.
 - Added a non-destructive OpenJDK 11 build targeting Java 8 bytecode.
 - Added XML filtering and malformed-entity regression tests.

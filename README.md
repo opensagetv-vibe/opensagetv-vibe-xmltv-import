@@ -8,13 +8,11 @@ Run `./opensagetv-dev.sh xmltv` from the sibling `opensagetv-build-env`
 repository. On Windows use `powershell -NoProfile -ExecutionPolicy Bypass -File
 .\opensagetv-dev.ps1 xmltv`. Output is under `output/`.
 
-Installation is optional and remains inactive until a user selects XMLTV and
-configures a provider. Example properties are packaged unchanged.
-
-## Legacy installation notes
-
-The upstream notes below are retained for reference. The destructive legacy
-clean script is not part of the supported build.
+Installation registers `xmltv.XMLTVImportPlugin` so XMLTV appears as an EPG
+option without any legacy SageTV license key. No lineup is selected and no
+guide import occurs until the user chooses a provider. If configuration is
+missing, a safe `XMLTV Lineup` placeholder remains selectable while examples
+are available under `.config/xmltv-examples`.
 
 ## How to install Plugin with SageTV 
 1.  Stop SageTV Server
@@ -23,23 +21,20 @@ clean script is not part of the supported build.
 4.  Add the following line in Sage.properties epg/epg_import_plugin=xmltv.XMLTVImportPlugin
 5.  Start SageTV Server
 6.  Monitor in server folder xmltv.log, sagetv_0.txt,Sage.properties.  If epg/epg_import_plugin=xmltv.XMLTVImportPlugin is removed from Sage.properties something is installed not correctly
-7.  In SageTV guide setup use XMLTV with zipcode 00000.  If ask for license use TRIAL
+7.  In SageTV guide setup select the XMLTV provider. No SageTV license or trial key is required.
 
-# Commnds for UnRaid Docker to Moditfy Sage.properties for Plugin 
-1.  Stop Sage Server
-+ ``sudo -E "PATH=$PATH" -u sagetv /usr/local/bin/stopsage &``
-2.  Property Setting for EPG Plugin 
-- ``sudo sed -i 'epg/epg_import_plugin' /opt/sagetv/server/Sage.properties``
-- ``sudo echo 'epg/epg_import_plugin=xmltv.XMLTVImportPlugin' >>  /opt/sagetv/server/Sage.properties``
-3.  Start Sage Server 
-- `` sudo -E "PATH=$PATH" -u sagetv /usr/local/bin/startsage & ``
+## Supported Unraid container installation
 
-# Using UnRaid Docker to compile plugin
-1.  ssh unraid server
-2.  ``docker exec -it sagetvopen-sagetv-server-java11_TEST  /bin/bash``
-3.  Run one of the following
-- `` sh ondocker_build.sh ``
-- `` sh ondocker_build_clean_sagetv.sh ``
+The `opensagetv-container` release embeds the tested JAR, copies it into
+`server/JARs`, and safely upserts the plugin property at startup. Do not edit
+`Sage.properties` with the obsolete `sed`/`sudo` commands from the historical
+project. The CA template's `XMLTV EPG Provider` value must remain
+`xmltv.XMLTVImportPlugin`, and XML source paths under `/mnt/user` are visible in
+the container below `/unraid`.
+
+Compile on the unified Ubuntu 26 build image, then move the finished container
+image to a low-CPU Unraid system. Building the plugin inside the running server
+container is unsupported.
 
 # Examples `.properties` for channel
 ![](https://github.com/jzhvymetal/SageTv_XMLTVImportPlugin/blob/main/SAGETV_SERVER_ROOT_Contents/xmltv_src/DOC/PROP_Channel.png)
