@@ -98,4 +98,10 @@
 20.  In `.properties` change option 'episode.name.add.episode.number' default to false
 21.  In `.properties` change option 'episode.name.add.part.number' default to false
 22.  Add special case for parsing channelDVR  <programme><episode-num system=placeholder />/>  and <programme><episode-num system=xmltv: />/>
+##3.2 08/26/2026
+1. Restored compatibility with the legacy xmltv.channel.IconDownload property.
+2. Channel icons are validated, converted atomically to PNG, and downscaled
+   within configurable SageTV-safe bounds while preserving aspect ratio.
+3. Added timeouts and payload/pixel limits so invalid icon downloads fail
+   without interrupting the guide import.
 */

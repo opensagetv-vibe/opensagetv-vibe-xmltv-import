@@ -128,11 +128,18 @@ import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLConnection;
 import java.io.BufferedInputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
@@ -188,7 +195,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
         ContentHandler, ErrorHandler {
 
     //The newline sequence.
-    private static final String ProgramVersion = "3.1";
+    private static final String ProgramVersion = "3.2";
 	//The newline sequence.
     private static final String NEWLINE = System.getProperty("line.separator");
 	//The date format used for logging. 
@@ -207,6 +214,13 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
     private static PrintStream sXmltvLogPrinter;
 	//The number of milliseconds that a log should be kept. (48 hours)
     private static final long LOG_TIMEOUT = 1000 * 60 * 60 * 48;
+	private static final int DEFAULT_CHANNEL_ICON_MAX_WIDTH = 256;
+	private static final int DEFAULT_CHANNEL_ICON_MAX_HEIGHT = 256;
+	private static final int MAX_CHANNEL_ICON_DOWNLOAD_BYTES = 8 * 1024 * 1024;
+	private static final long MAX_CHANNEL_ICON_SOURCE_PIXELS = 16L * 1024L * 1024L;
+	private static final byte[] PNG_SIGNATURE = new byte[] {
+		(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a
+	};
 	private static long currentTimeMillis() {
 		return Long.getLong("xmltv.test.currentTimeMillis", System.currentTimeMillis());
 	}
@@ -317,7 +331,8 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		defaults.put("xmltv.channel.NumberTag", "");
 		defaults.put("xmltv.channel.NumberTagIndex", "0");
 		defaults.put("xmltv.channel.NumberTagRegEx", "");
-		defaults.put("sagetv.channel.IconDownload", "false");
+		defaults.put("sagetv.channel.IconMaxWidth", Integer.toString(DEFAULT_CHANNEL_ICON_MAX_WIDTH));
+		defaults.put("sagetv.channel.IconMaxHeight", Integer.toString(DEFAULT_CHANNEL_ICON_MAX_HEIGHT));
 		defaults.put("xmltv.programme.episode-num.system.showID_Value", "");
 		defaults.put("log.defaults", "true");
 		defaults.put("log.configuration", "true");
@@ -495,7 +510,13 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		
 		this.init.ChannelNumberTagRegEx = getProperty(aConfiguration, "xmltv.channel.NumberTagRegEx");
 		
-		this.init.SagetvChannelIconDownload = isTrue(getProperty(aConfiguration, "sagetv.channel.IconDownload"));
+		this.init.SagetvChannelIconDownload = isChannelIconDownloadEnabled(aConfiguration);
+		this.init.SagetvChannelIconMaxWidth = getBoundedPositiveInt(
+				aConfiguration, "sagetv.channel.IconMaxWidth",
+				DEFAULT_CHANNEL_ICON_MAX_WIDTH, 16, 2048);
+		this.init.SagetvChannelIconMaxHeight = getBoundedPositiveInt(
+				aConfiguration, "sagetv.channel.IconMaxHeight",
+				DEFAULT_CHANNEL_ICON_MAX_HEIGHT, 16, 2048);
 		
 		
 		this.init.ProgrammeEpisodeNumSystemShowID_Value = getProperty(aConfiguration, "xmltv.programme.episode-num.system.showID_Value");
@@ -856,6 +877,38 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
         return "true".equals(value) || "yes".equals(value) || "1".equals(value);
     }
 
+	/**
+	 * The original plugin used xmltv.channel.IconDownload and later releases
+	 * renamed it. Keep both names so existing provider files continue to work;
+	 * when both are present the documented sagetv.* name wins.
+	 */
+	static final boolean isChannelIconDownloadEnabled(Properties aProperties) {
+		String value = getProperty(aProperties, "sagetv.channel.IconDownload");
+		if (value == null) {
+			value = getProperty(aProperties, "xmltv.channel.IconDownload");
+		}
+		return isTrue(value, false);
+	}
+
+	private static final int getBoundedPositiveInt(Properties aProperties,
+			String aKey, int aDefault, int aMinimum, int aMaximum) {
+		String value = getProperty(aProperties, aKey);
+		if (value == null) {
+			return aDefault;
+		}
+		try {
+			int parsed = Integer.parseInt(value);
+			if (parsed >= aMinimum && parsed <= aMaximum) {
+				return parsed;
+			}
+		} catch (NumberFormatException e) {
+			// The warning below includes the invalid value and the safe fallback.
+		}
+		log("Invalid " + aKey + "=" + value + "; using " + aDefault
+				+ " (allowed range " + aMinimum + "-" + aMaximum + ")");
+		return aDefault;
+	}
+
     /**
      * Returns a property from properties.
      * 
@@ -875,6 +928,208 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
         }
         return value;
     }
+
+	/**
+	 * Download an XMLTV channel icon, validate the decoder input and always
+	 * write a SageTV-compatible PNG. Images are downscaled to fit the requested
+	 * bounds without changing their aspect ratio or upscaling small artwork.
+	 */
+	static final boolean downloadAndNormalizeChannelIcon(String aIconUrl,
+			File aDestination, int aMaxWidth, int aMaxHeight) {
+		if (aIconUrl == null || aIconUrl.trim().length() == 0
+				|| aDestination == null || aMaxWidth < 1 || aMaxHeight < 1) {
+			return false;
+		}
+
+		try {
+			File parent = aDestination.getAbsoluteFile().getParentFile();
+			if (parent == null || (!parent.isDirectory() && !parent.mkdirs())) {
+				throw new IOException("Unable to create channel logo directory: " + parent);
+			}
+
+			if (aDestination.isFile()) {
+				try {
+					BufferedImage existing = readBoundedImage(aDestination.toURI().toURL());
+					if (existing.getWidth() <= aMaxWidth
+							&& existing.getHeight() <= aMaxHeight
+							&& hasPngSignature(aDestination)) {
+						return true;
+					}
+					writePngAtomically(normalizeChannelIcon(existing, aMaxWidth, aMaxHeight),
+							aDestination);
+					log("Normalized existing channel logo " + aDestination.getName()
+							+ " to " + imageDimensions(aDestination));
+					return true;
+				} catch (IOException e) {
+					log("Existing channel logo is invalid; attempting replacement: "
+							+ aDestination + " (" + e.getMessage() + ")");
+				}
+			}
+
+			String iconUrl = aIconUrl.trim();
+			if (iconUrl.startsWith("//")) {
+				iconUrl = "https:" + iconUrl;
+			}
+			BufferedImage downloaded = readBoundedImage(new URL(iconUrl));
+			BufferedImage normalized = normalizeChannelIcon(downloaded, aMaxWidth, aMaxHeight);
+			writePngAtomically(normalized, aDestination);
+			log("Downloaded channel logo " + aDestination.getName() + " from "
+					+ iconUrl + " (" + downloaded.getWidth() + "x" + downloaded.getHeight()
+					+ " -> " + normalized.getWidth() + "x" + normalized.getHeight() + " PNG)");
+			return true;
+		} catch (Exception e) {
+			log("Channel logo download failed for " + aDestination + " from "
+					+ aIconUrl + ": " + e);
+			return false;
+		}
+	}
+
+	private static final BufferedImage readBoundedImage(URL aUrl) throws IOException {
+		URLConnection connection = aUrl.openConnection();
+		connection.setUseCaches(false);
+		connection.setConnectTimeout(10000);
+		connection.setReadTimeout(20000);
+		connection.setRequestProperty("Accept", "image/png,image/jpeg,image/gif,image/*;q=0.8");
+		connection.setRequestProperty("User-Agent", "OpenSageTV-XMLTVImportPlugin/3.1");
+
+		HttpURLConnection http = connection instanceof HttpURLConnection
+				? (HttpURLConnection) connection : null;
+		try {
+			if (http != null) {
+				http.setInstanceFollowRedirects(true);
+				int status = http.getResponseCode();
+				if (status < 200 || status >= 300) {
+					throw new IOException("HTTP " + status);
+				}
+			}
+
+			long contentLength = connection.getContentLengthLong();
+			if (contentLength > MAX_CHANNEL_ICON_DOWNLOAD_BYTES) {
+				throw new IOException("image payload exceeds "
+						+ MAX_CHANNEL_ICON_DOWNLOAD_BYTES + " bytes");
+			}
+
+			byte[] data;
+			try (InputStream input = new BufferedInputStream(connection.getInputStream());
+					ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+				byte[] buffer = new byte[16384];
+				int total = 0;
+				int count;
+				while ((count = input.read(buffer)) != -1) {
+					total += count;
+					if (total > MAX_CHANNEL_ICON_DOWNLOAD_BYTES) {
+						throw new IOException("image payload exceeds "
+								+ MAX_CHANNEL_ICON_DOWNLOAD_BYTES + " bytes");
+					}
+					output.write(buffer, 0, count);
+				}
+				data = output.toByteArray();
+			}
+			return decodeBoundedImage(data);
+		} finally {
+			if (http != null) {
+				http.disconnect();
+			}
+		}
+	}
+
+	private static final BufferedImage decodeBoundedImage(byte[] aData) throws IOException {
+		if (aData.length == 0) {
+			throw new IOException("empty image payload");
+		}
+		try (ImageInputStream input = ImageIO.createImageInputStream(
+				new ByteArrayInputStream(aData))) {
+			if (input == null) {
+				throw new IOException("unable to create image input stream");
+			}
+			Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
+			if (!readers.hasNext()) {
+				throw new IOException("unsupported or malformed image format");
+			}
+			ImageReader reader = readers.next();
+			try {
+				reader.setInput(input, true, true);
+				int width = reader.getWidth(0);
+				int height = reader.getHeight(0);
+				if (width < 1 || height < 1
+						|| (long) width * (long) height > MAX_CHANNEL_ICON_SOURCE_PIXELS) {
+					throw new IOException("unsafe source dimensions " + width + "x" + height);
+				}
+				BufferedImage image = reader.read(0);
+				if (image == null) {
+					throw new IOException("image decoder returned no pixels");
+				}
+				return image;
+			} finally {
+				reader.dispose();
+			}
+		}
+	}
+
+	private static final BufferedImage normalizeChannelIcon(BufferedImage aSource,
+			int aMaxWidth, int aMaxHeight) {
+		double scale = Math.min(1.0d, Math.min(
+				(double) aMaxWidth / (double) aSource.getWidth(),
+				(double) aMaxHeight / (double) aSource.getHeight()));
+		int width = Math.max(1, (int) Math.round(aSource.getWidth() * scale));
+		int height = Math.max(1, (int) Math.round(aSource.getHeight() * scale));
+		BufferedImage result = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphics = result.createGraphics();
+		try {
+			graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+					RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+			graphics.setRenderingHint(RenderingHints.KEY_RENDERING,
+					RenderingHints.VALUE_RENDER_QUALITY);
+			graphics.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION,
+					RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+			graphics.drawImage(aSource, 0, 0, width, height, null);
+		} finally {
+			graphics.dispose();
+		}
+		return result;
+	}
+
+	private static final void writePngAtomically(BufferedImage aImage, File aDestination)
+			throws IOException {
+		File parent = aDestination.getAbsoluteFile().getParentFile();
+		File temporary = File.createTempFile(".xmltv-logo-", ".png", parent);
+		try {
+			if (!ImageIO.write(aImage, "png", temporary)) {
+				throw new IOException("PNG encoder is unavailable");
+			}
+			try {
+				Files.move(temporary.toPath(), aDestination.toPath(),
+						StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+			} catch (AtomicMoveNotSupportedException e) {
+				Files.move(temporary.toPath(), aDestination.toPath(),
+						StandardCopyOption.REPLACE_EXISTING);
+			}
+		} finally {
+			if (temporary.exists() && !temporary.delete()) {
+				temporary.deleteOnExit();
+			}
+		}
+	}
+
+	private static final boolean hasPngSignature(File aFile) throws IOException {
+		try (InputStream input = new FileInputStream(aFile)) {
+			for (int i = 0; i < PNG_SIGNATURE.length; i++) {
+				if (input.read() != (PNG_SIGNATURE[i] & 0xff)) {
+					return false;
+				}
+			}
+			return true;
+		}
+	}
+
+	private static final String imageDimensions(File aFile) {
+		try {
+			BufferedImage image = ImageIO.read(aFile);
+			return image == null ? "unknown dimensions" : image.getWidth() + "x" + image.getHeight() + " PNG";
+		} catch (IOException e) {
+			return "unknown dimensions";
+		}
+	}
 
     static final void logXMLTV(Object aObject) {
 		sXmltvLogPrinter=getLogPrinter(XMLTV_LOG_FILE, sXmltvLogPrinter);
@@ -2076,19 +2331,12 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		this.guide.addChannelPublic(ShortName, LongName, Network, StationID);
 		
 		
-		if(this.channel.xmltvIcon!=null && this.init.SagetvChannelIconDownload ){
-			String FileName=ShortName;
-			String ImageFilePath="." + File.separator + "ChannelLogos" + File.separator + FileName + ".png";
-			File ImageFile = new File(ImageFilePath);	
-			if(!ImageFile.exists())
-			{
-				BufferedImage image =null;
-				URL url =new URL(this.channel.xmltvIcon);
-				image = ImageIO.read(url);
-
-				if(this.channel.xmltvIcon.contains("png")) ImageIO.write(image, "png",ImageFile);
-				if(this.channel.xmltvIcon.contains("jpg")) ImageIO.write(image, "jpg",ImageFile);
-			}
+		if (this.channel.xmltvIcon != null && this.init.SagetvChannelIconDownload
+				&& ShortName.length() > 0) {
+			File imageFile = new File(new File("ChannelLogos"), ShortName + ".png");
+			downloadAndNormalizeChannelIcon(this.channel.xmltvIcon, imageFile,
+					this.init.SagetvChannelIconMaxWidth,
+					this.init.SagetvChannelIconMaxHeight);
 		}
 
 		//Put the channel in XMLTV Map with the key being xmltvId String

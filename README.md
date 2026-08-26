@@ -36,6 +36,26 @@ Compile on the unified Ubuntu 26 build image, then move the finished container
 image to a low-CPU Unraid system. Building the plugin inside the running server
 container is unsupported.
 
+## Channel logos
+
+Set `sagetv.channel.IconDownload=true` in the selected provider's
+`*.xmltv.properties` file to download each channel's `<icon src="...">` URL.
+The historical key `xmltv.channel.IconDownload=true` remains supported for
+existing configurations. The importer creates `ChannelLogos`, accepts image
+URLs without a useful file extension, and converts supported input formats to
+PNG. Logos preserve aspect ratio and transparency, are never enlarged, and are
+downscaled to a 256x256 bounding box by default. The limits can be changed with:
+
+```properties
+sagetv.channel.IconMaxWidth=256
+sagetv.channel.IconMaxHeight=256
+```
+
+Values are constrained to 16-2048 pixels. Downloads have connection/read
+timeouts, an 8 MiB encoded-size limit, and a 16-megapixel decoded-size limit so
+a bad or hostile icon cannot consume unbounded server resources. Failures are
+logged to `xmltv.log` and do not abort the guide import.
+
 # Examples `.properties` for channel
 ![](https://github.com/jzhvymetal/SageTv_XMLTVImportPlugin/blob/main/SAGETV_SERVER_ROOT_Contents/xmltv_src/DOC/PROP_Channel.png)
 

@@ -133,6 +133,10 @@ public final class Init {
      */
 	boolean SagetvChannelIconDownload;
 
+	/** Maximum dimensions of a downloaded local channel logo. */
+	int SagetvChannelIconMaxWidth;
+	int SagetvChannelIconMaxHeight;
+
     /**
      * Titles on dutch channels are capitalized differently from titles on
      * english channels. This would be ok if sage's favorites weren't

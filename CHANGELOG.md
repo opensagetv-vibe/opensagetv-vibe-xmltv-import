@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Restored the legacy `xmltv.channel.IconDownload` configuration alias; the
+  newer `sagetv.channel.IconDownload` name takes precedence when both exist.
+- Replaced extension-based channel-logo writes with validated downloads and
+  atomic PNG output. Logos now preserve aspect ratio/alpha and are downscaled
+  to a configurable 256x256 maximum without upscaling.
+- Added HTTP timeouts, encoded/decoded size limits, malformed-image handling,
+  directory creation, and regression coverage for channel-logo processing.
 - Removed the obsolete SageTV EPG license expectation by registering the XMLTV import class whenever its JAR is installed.
 - Expose a safe default `XMLTV Lineup` provider when configuration is absent, keeping the plugin selectable during initial setup.
 - Preserved upstream history and tags.
