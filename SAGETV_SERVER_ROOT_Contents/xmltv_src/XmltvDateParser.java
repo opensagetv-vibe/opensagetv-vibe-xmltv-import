@@ -1,6 +1,7 @@
 package xmltv;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -20,6 +21,12 @@ final class XmltvDateParser {
     private static final DateTimeFormatter DAY = new DateTimeFormatterBuilder()
             .parseCaseSensitive().appendPattern("uuuuMMdd").toFormatter(Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT);
+    private static final DateTimeFormatter LOCAL_SECONDS = new DateTimeFormatterBuilder()
+            .parseCaseSensitive().appendPattern("uuuuMMddHHmmss").toFormatter(Locale.ROOT)
+            .withResolverStyle(ResolverStyle.STRICT);
+    private static final DateTimeFormatter LOCAL_MINUTES = new DateTimeFormatterBuilder()
+            .parseCaseSensitive().appendPattern("uuuuMMddHHmm").toFormatter(Locale.ROOT)
+            .withResolverStyle(ResolverStyle.STRICT);
 
     private XmltvDateParser() {
     }
@@ -32,7 +39,15 @@ final class XmltvDateParser {
             int separator = value.indexOf(' ');
             if (separator == 12) formatter = MINUTES;
             else if (separator == 14) formatter = SECONDS;
-            else throw new IllegalArgumentException("Unknown XMLTV timestamp format: " + input);
+            else if (separator < 0 && value.length() == 12) {
+                return Date.from(LocalDateTime.parse(value, LOCAL_MINUTES)
+                        .atZone(ZoneId.systemDefault()).toInstant());
+            } else if (separator < 0 && value.length() == 14) {
+                return Date.from(LocalDateTime.parse(value, LOCAL_SECONDS)
+                        .atZone(ZoneId.systemDefault()).toInstant());
+            } else {
+                throw new IllegalArgumentException("Unknown XMLTV timestamp format: " + input);
+            }
             return Date.from(OffsetDateTime.parse(value, formatter).toInstant());
         } catch (java.time.DateTimeException e) {
             throw new IllegalArgumentException("Invalid XMLTV timestamp: " + input, e);

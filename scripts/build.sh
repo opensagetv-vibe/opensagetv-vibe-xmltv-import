@@ -29,7 +29,8 @@ javac -encoding UTF-8 --release 8 -classpath "$out/classes:$sage_jar" \
   "$root/tests/xmltv/ImportFailureHarness.java" \
   "$root/tests/xmltv/MetadataMappingHarness.java" \
   "$root/tests/xmltv/ProviderReloadTest.java" \
-  "$root/tests/xmltv/ConfigurationProfilesTest.java"
+  "$root/tests/xmltv/ConfigurationProfilesTest.java" \
+  "$root/tests/xmltv/ProfileRuntimeProbe.java"
 java -classpath "$out/test-classes:$out/classes:$sage_jar" xmltv.XMLInputStreamFilterTest \
   | tee "$out/test-results/tests.log"
 provider_work="$(mktemp -d)"
@@ -136,6 +137,20 @@ test -s "$multi_work/xmltv_Multiple_Sources.xml"
 test -s "$multi_work/xmltv_Multiple_Sources_2.xml"
 rm -rf "$multi_work"
 echo '[PASS] metadata coverage and multiple-source import fixtures' \
+  | tee -a "$out/test-results/tests.log"
+
+collision_work="$(mktemp -d)"
+printf 'provider.name=Collision Lineup\nprovider.id=999\nxmltv.files=%s\nxmltv.channel.display-name.ShortNameIndex=1\nxmltv.channel.display-name.ShortNameRegex=(?<=\\\\s).*\nxmltv.channel.NumberTag=display-name\nxmltv.channel.NumberTagIndex=1\nxmltv.channel.NumberTagRegEx=^([^ ]+)\nlog.configuration=false\nlog.channel=false\nlog.show=false\n' \
+  "$root/tests/fixtures/station-id-collision.xml" \
+  > "$collision_work/collision.xmltv.properties"
+(cd "$collision_work"; java -Dxmltv.test.currentTimeMillis=1787659500000 \
+  -classpath "$out/test-classes:$out/classes:$sage_jar" xmltv.ImporterHarness collision.xml) \
+  | tee "$out/test-results/station-id-collision.log"
+grep -q 'result=true channels=2 shows=2 uniqueShowIds=2 conflictingShowIds=0 airings=2' \
+  "$out/test-results/station-id-collision.log"
+grep -q 'lineupStations=2' "$out/test-results/station-id-collision.log"
+rm -rf "$collision_work"
+echo '[PASS] XMLTV DTD compatibility and deterministic station-ID collision fallback' \
   | tee -a "$out/test-results/tests.log"
 
 large_work="$(mktemp -d)"

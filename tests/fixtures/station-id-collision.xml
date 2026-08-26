@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE tv SYSTEM "xmltv.dtd">
+<tv>
+  <channel id="station-a">
+    <display-name>23.1 AAA</display-name>
+  </channel>
+  <channel id="station-b">
+    <display-name>23.1 BBB</display-name>
+  </channel>
+  <programme start="20260826120000 +0000" stop="20260826123000 +0000" channel="station-a">
+    <title>Collision A</title>
+    <episode-num system="tms">EP000000030001</episode-num>
+  </programme>
+  <programme start="20260826123000 +0000" stop="20260826130000 +0000" channel="station-b">
+    <title>Collision B</title>
+    <episode-num system="tms">EP000000040001</episode-num>
+  </programme>
+</tv>

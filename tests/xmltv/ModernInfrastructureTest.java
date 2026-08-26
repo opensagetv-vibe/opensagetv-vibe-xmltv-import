@@ -13,6 +13,8 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -50,6 +52,10 @@ public final class ModernInfrastructureTest {
                 XmltvDateParser.parseTimestamp("202608261234 +0530").toInstant(), "half-hour offset");
         assertEquals(Instant.parse("2026-08-26T12:34:00Z"),
                 XmltvDateParser.parseTimestamp("202608261234 Z").toInstant(), "Z offset");
+        assertEquals(LocalDateTime.of(2026, 8, 26, 12, 34, 56)
+                        .atZone(ZoneId.systemDefault()).toInstant(),
+                XmltvDateParser.parseTimestamp("20260826123456").toInstant(),
+                "XMLTV local seconds without offset");
         expectFailure(new CheckedRunnable() {
             public void run() { XmltvDateParser.parseTimestamp("20260230120000 +0000"); }
         }, "invalid calendar date");
@@ -59,13 +65,20 @@ public final class ModernInfrastructureTest {
         DefaultHandler handler = new DefaultHandler();
         XMLReader valid = SecureXmlReader.create(handler, handler);
         valid.parse(new InputSource(new StringReader("<tv><channel id='1'/></tv>")));
+        XMLReader xmltvDtd = SecureXmlReader.create(handler, handler);
+        xmltvDtd.parse(new InputSource(new StringReader(
+                "<!DOCTYPE tv SYSTEM 'xmltv.dtd'><tv><channel id='1'/></tv>")));
+
         expectFailure(new CheckedRunnable() {
             public void run() throws Exception {
-                XMLReader reader = SecureXmlReader.create(new DefaultHandler(), new DefaultHandler());
-                reader.parse(new InputSource(new StringReader(
-                        "<!DOCTYPE tv [<!ENTITY xxe SYSTEM 'file:///etc/passwd'>]><tv>&xxe;</tv>")));
+                DefaultHandler xxeHandler = new DefaultHandler();
+                XMLReader xxe = SecureXmlReader.create(xxeHandler, xxeHandler);
+                xxe.parse(new InputSource(new StringReader(
+                        "<!DOCTYPE tv [<!ENTITY xxe SYSTEM 'file:///etc/passwd'>]>"
+                        + "<tv><channel id='1'><display-name>&xxe;</display-name>"
+                        + "</channel></tv>")));
             }
-        }, "DOCTYPE/XXE rejection");
+        }, "inline external entity rejection");
     }
 
     private static void testConfigurationRedaction() {
@@ -82,6 +95,16 @@ public final class ModernInfrastructureTest {
         decimal.add("2.1");
         assertEquals(1012000210, ChannelMapper.stationId("12", "station", decimal),
                 "legacy decimal station ID");
+        java.util.HashSet<Integer> usedStationIds = new java.util.HashSet<Integer>();
+        usedStationIds.add(Integer.valueOf(1012000210));
+        int fallbackStationId = ChannelMapper.collisionStationId(
+                "12", "different-station", usedStationIds);
+        assertTrue(fallbackStationId >= 1500000000 && fallbackStationId < 2000000000
+                        && fallbackStationId != 1012000210,
+                "station-ID collision fallback is outside its deterministic range");
+        assertEquals(Integer.valueOf(fallbackStationId), Integer.valueOf(
+                ChannelMapper.collisionStationId("12", "different-station", usedStationIds)),
+                "station-ID collision fallback is not deterministic");
         LinkedHashSet<String> hyphen = new LinkedHashSet<String>();
         hyphen.add("5-1");
         assertEquals("6-1", ChannelMapper.normalizeNumbers(hyphen, 1, "-")

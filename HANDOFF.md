@@ -26,8 +26,9 @@ Version 3.4 reports guide completion truthfully. A required feed, parser,
 `run.before`, or SageTV database error makes `updateGuide()` return `false`, and
 the plugin does not call `setLineup()` after a partial failure. Feed downloads
 are bounded, status checked, gzip aware, conditionally cached, and atomically
-replaced. All SAX readers reject DTDs/external entities. Configuration secrets
-and URL credentials/queries are redacted from logs.
+replaced. SAX readers accept the common XMLTV DTD declaration without loading
+the external DTD and reject inline/external entity expansion. Configuration
+secrets and URL credentials/queries are redacted from logs.
 
 The new boundaries are `XmltvConfiguration`, `FeedDownloader`,
 `SecureXmlReader`/`XmltvParser`, `XmltvDateParser`, `ExternalCommandRunner`,
@@ -43,6 +44,11 @@ includes/common, selected profile, then the active `.xmltv.properties` file.
 only the selection line; the existing provider settings remain authoritative.
 The container seeds missing shipped profiles but never overwrites a user's
 existing root-level profile.
+
+For read-only commissioning against a server directory, run the compiled test
+helper from that directory with the plugin and Sage JARs on the classpath:
+`xmltv.ProfileRuntimeProbe CONFIG_FILE PROVIDER_ID PROVIDER_NAME`. It verifies
+provider discovery and prints the resolved channel/profile fields.
 
 ## Show identities
 
@@ -80,3 +86,26 @@ audit/identity tests, profile compatibility/precedence/auto generation, channel
 logos, and a generated 500-channel stress lineup.
 Private corpus files are not retained. Their earlier results are documented in
 `docs/PRIVATE_CORPUS_TEST_REPORT.md` and must not be presented as a 3.5 replay.
+
+## Unraid commissioning result
+
+Version 3.5 was commissioned on 2026-08-26 in
+`OpenSageTV-sagetv-server-u26-gpu-j11` using the profile-backed FTA_60177
+configuration. The real feed declared `xmltv.dtd`, used offset-free timestamps,
+and contained duplicate displayed channel numbers. Those findings produced the
+DTD containment, local-time parsing, and deterministic station-ID fallback
+fixes in this release.
+
+The final forced import reported `success=true`, `configurations=1/1`,
+`feeds=1/1`, and `failures=0`. It imported all 107 source channels as 107
+distinct SageTV station IDs and processed 29,922 programme records. A container
+restart returned healthy and retained the tested JAR at SHA-256
+`f41f405dbdaa50977aa23788ab13d656bccb364800189e663c7f2d16369af7fa` in both
+the live JAR directory and the current container's embedded startup asset.
+
+The pre-commissioning rollback copy remains at
+`server/.backups/xmltv-profile-20260826-132101`. No feed or appdata content is
+stored in this repository. The current container was patched without a full
+image rebuild as requested; rebuilding `opensagetv-container` from commit
+`052b6ff` or later is required before deleting/recreating that container from
+an older image tag.

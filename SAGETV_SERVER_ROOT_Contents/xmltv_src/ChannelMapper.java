@@ -3,6 +3,7 @@ package xmltv;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.zip.CRC32;
 
 /** Pure channel-number and station-ID mapping shared by importer tests and runtime. */
 final class ChannelMapper {
@@ -62,6 +63,24 @@ final class ChannelMapper {
                     + (parts.length == 2 ? outputSeparator + parts[1] : ""));
         }
         return result;
+    }
+
+    static int collisionStationId(String providerId, String xmltvId, Set<Integer> usedIds) {
+        if (xmltvId == null || xmltvId.length() == 0) {
+            throw new IllegalArgumentException("channel ID is required for collision resolution");
+        }
+        CRC32 crc = new CRC32();
+        String identity = String.valueOf(providerId) + '\u001f' + xmltvId;
+        crc.update(identity.getBytes(StandardCharsets.UTF_8));
+        int range = 500000000;
+        int candidate = 1500000000 + (int) (crc.getValue() % range);
+        int first = candidate;
+        while (usedIds != null && usedIds.contains(Integer.valueOf(candidate))) {
+            candidate++;
+            if (candidate >= 2000000000) candidate = 1500000000;
+            if (candidate == first) throw new IllegalStateException("station-ID fallback range exhausted");
+        }
+        return candidate;
     }
 
     static int crc16(byte[] buffer) {

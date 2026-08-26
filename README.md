@@ -121,7 +121,8 @@ conditional ETag/Last-Modified requests, and update the local cache atomically.
 A failed download preserves the previous cache for diagnosis but fails the
 current import instead of silently loading stale guide data.
 
-XML parsing disables DTDs and external entities. The default validation pass
+XML parsing accepts the standard XMLTV `xmltv.dtd` declaration but disables
+external DTD loading and external entity expansion. The default validation pass
 detects truncated or hostile input before SageTV database calls, and element
 text has a configurable memory bound. The relevant defaults are:
 
@@ -141,6 +142,14 @@ run.before.log_command=false
 `xmltv.language.preferred` selects a matching title, subtitle, and description
 when a feed supplies alternatives. `run.before` output is drained into
 `xmltv.log`; its command text is redacted unless logging is explicitly enabled.
+Timestamps containing 12 or 14 digits but no UTC offset are interpreted in the
+SageTV server's configured time zone; timestamps that include an offset retain
+their explicit instant.
+
+Legacy station IDs remain unchanged for established lineups. If two different
+XMLTV channel IDs nevertheless calculate the same station ID, the first keeps
+the legacy value and the later channel receives a deterministic provider-scoped
+fallback. The collision and both IDs are logged, and neither channel is dropped.
 
 ## Configuration profiles
 

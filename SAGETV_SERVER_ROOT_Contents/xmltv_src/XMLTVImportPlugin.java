@@ -2329,12 +2329,16 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		}
 		StationID = ChannelMapper.stationId(this.initProviderId,
 				this.channel.xmltvId, this.channel.numbers);
-		String stationOwner = this.stationIdOwners.put(Integer.valueOf(StationID),
-				this.channel.xmltvId);
+		String stationOwner = this.stationIdOwners.get(Integer.valueOf(StationID));
 		if (stationOwner != null && !stationOwner.equals(this.channel.xmltvId)) {
-			throw new IllegalStateException("station ID collision " + StationID + " between "
-					+ stationOwner + " and " + this.channel.xmltvId);
+			int collidedStationId = StationID;
+			StationID = ChannelMapper.collisionStationId(this.initProviderId,
+					this.channel.xmltvId, this.stationIdOwners.keySet());
+			log("Station ID collision " + collidedStationId + " between " + stationOwner
+					+ " and " + this.channel.xmltvId + "; assigned deterministic fallback "
+					+ StationID + " to " + this.channel.xmltvId);
 		}
+		this.stationIdOwners.put(Integer.valueOf(StationID), this.channel.xmltvId);
 		this.channel.STVstationID=StationID;
 				
 		this.channel.numbers = ChannelMapper.normalizeNumbers(this.channel.numbers,

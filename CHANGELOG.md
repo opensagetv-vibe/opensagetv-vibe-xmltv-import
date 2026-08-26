@@ -21,8 +21,14 @@
 - Added bounded local/file/HTTP(S) feed acquisition with gzip detection,
   redirect/status validation, ETag/Last-Modified caching, and atomic writes
   that preserve the prior cache on failure.
-- Hardened every SAX parser against DOCTYPE, XXE, external DTD/schema access,
-  fatal-error continuation, truncated XML, and unbounded element text.
+- Hardened every SAX parser against XXE, external DTD/schema access, fatal-error
+  continuation, truncated XML, and unbounded element text while accepting the
+  standard XMLTV `xmltv.dtd` declaration without loading it.
+- Accepted XMLTV timestamps without an explicit UTC offset using the SageTV
+  server's configured time zone, while retaining strict calendar validation.
+- Preserved every source channel when two XMLTV channel IDs resolve to the same
+  legacy numeric station ID by assigning a deterministic, provider-scoped
+  fallback instead of failing or silently dropping a station.
 - Extracted typed configuration, feed download, secure parsing, date parsing,
   command execution, channel/programme mapping, and Sage guide-write adapters.
 - Replaced shared mutable date parsers with strict `java.time` parsing and made

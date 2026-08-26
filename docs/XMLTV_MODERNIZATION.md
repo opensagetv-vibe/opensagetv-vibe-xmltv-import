@@ -33,10 +33,11 @@ Credentials and URL queries are redacted from configuration/log output.
 ## XML containment
 
 `SecureXmlReader` creates the SAX reader used for both validation and import.
-Secure processing is enabled; DOCTYPE declarations, external general entities,
-external parameter entities, and external DTD/schema access are disabled. A
-rejecting entity resolver is installed as defense in depth. Error and fatal SAX
-callbacks propagate. Per-element accumulated text is bounded.
+Secure processing is enabled. XMLTV's common `xmltv.dtd` declaration is
+accepted, but external general entities, external parameter entities, external
+DTD loading, and external DTD/schema access are disabled. A rejecting entity
+resolver is installed as defense in depth. Error and fatal SAX callbacks
+propagate. Per-element accumulated text is bounded.
 
 The optional invalid-character filter remains supported, but it no longer
 weakens the parser security configuration.
@@ -65,9 +66,14 @@ skipped without hiding valid providers.
   check; mapped TV ratings also populate SageTV's parental-rating field.
 - The previously unreachable `<subtitles>` mapping now emits the subtitle flag.
 - `<previously-shown start="...">` is parsed and retained.
+- Offset-free 12/14-digit XMLTV timestamps are interpreted in the server time
+  zone instead of rejecting otherwise valid provider data.
 - Short season/episode values and multipart values cannot overrun fixed fields.
 - A repeated channel across multiple configured feeds remains valid and appears
   once in the final lineup.
+- Different channel IDs that collide under the historical station-ID arithmetic
+  receive deterministic provider-scoped fallback IDs; the original channel
+  keeps its established ID and every station remains in the lineup.
 
 Default channel station-ID arithmetic is preserved, including legacy decimal
 channel behavior, because changing it would detach an established lineup.
@@ -77,15 +83,18 @@ channel behavior, because changing it would detach an established lineup.
 `scripts/build.sh` compiles production sources with `javac --release 8` and
 runs all tests before packaging. Coverage includes:
 
-- missing feeds, malformed/truncated XML, hostile DOCTYPE/XXE input, rejected
-  SageTV writes, and the invariant that failed imports never call `setLineup`;
+- missing feeds, malformed/truncated XML, safe standard XMLTV DTD declarations,
+  hostile inline/external entities, rejected SageTV writes, and the invariant
+  that failed imports never call `setLineup`;
 - local/HTTP/gzip acquisition, redirects, conditional 304 responses, server
   errors, byte limits, read timeouts, and cache preservation;
-- strict timestamps with multiple UTC offsets and invalid calendar values;
+- strict timestamps with multiple UTC offsets, offset-free local timestamps,
+  and invalid calendar values;
 - command success, output draining, non-zero exit, and timeout termination;
 - provider add/delete reload, relative includes, and invalid configurations;
 - rating/language/previously-shown/subtitle/season/episode metadata;
-- multiple-source channel retention and a generated 500-channel lineup;
+- multiple-source channel retention, deterministic station-ID collision
+  fallback, and a generated 500-channel lineup;
 - legacy/v2 identity compatibility, persistence, collision detection, and the
   dry-run migration audit; and
 - existing channel-logo normalization and malformed-entity regressions.
