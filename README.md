@@ -8,7 +8,7 @@ Run `./opensagetv-dev.sh xmltv` from the sibling `opensagetv-build-env`
 repository. On Windows use `powershell -NoProfile -ExecutionPolicy Bypass -File
 .\opensagetv-dev.ps1 xmltv`. Output is under `output/`.
 
-Version 3.4 treats import completion truthfully: an unavailable or malformed
+Version 3.5 treats import completion truthfully: an unavailable or malformed
 feed, rejected SageTV database call, failed required `run.before` command, or
 incomplete configuration makes `updateGuide()` return `false`. The existing
 lineup is not replaced after a failed import.
@@ -141,6 +141,43 @@ run.before.log_command=false
 `xmltv.language.preferred` selects a matching title, subtitle, and description
 when a feed supplies alternatives. `run.before` output is drained into
 `xmltv.log`; its command text is redacted unless logging is explicitly enabled.
+
+## Configuration profiles
+
+Profiles remove duplicated feed-format settings while preserving every existing
+configuration. A configuration without `xmltv.profile` behaves exactly as it
+did previously. Select a root-level profile with:
+
+```properties
+provider.name=EPG123
+provider.id=777
+xmltv.files=/unraid/appdata/xmltvdata/epg123.xmltv
+xmltv.profile=EPG123
+```
+
+This loads `xmltv_EPG123.profile`. Precedence is:
+
+```text
+built-in defaults -> include/common -> selected profile -> .xmltv.properties
+```
+
+Consequently any setting in the existing provider file overrides the profile.
+Existing `include=` chains continue to work. Shipped profiles are `Generic`,
+`EPG123`, `Zap2XML`, `Pluto`, `Threadfin`, `xTeVe`, `IPTV`, `OTA_FTA`, and the
+commissioned `FTA_60177` mapping. Every profile and `common.properties` lives in
+the SageTV server root.
+
+To safely convert a working configuration into a provider-named profile:
+
+```properties
+xmltv.profile=auto
+```
+
+On the next provider reload, the importer atomically creates
+`xmltv_<provider.name>.profile`, makes it include `common.properties`, and
+changes only the profile selection from `auto` to the generated name. It leaves
+all existing settings in the provider file, so they remain authoritative. It
+does not overwrite an existing profile.
 
 # Examples `.properties` for channel
 ![](https://github.com/jzhvymetal/SageTv_XMLTVImportPlugin/blob/main/SAGETV_SERVER_ROOT_Contents/xmltv_src/DOC/PROP_Channel.png)

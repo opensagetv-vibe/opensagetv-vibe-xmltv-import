@@ -5,9 +5,9 @@ authorized Unraid `appdata/xmltvdata` directory. Source files were mounted
 read-only, were not committed, and temporary copies were deleted after testing.
 
 These files are not retained in the repository and were not available for the
-version 3.4 modernization replay. The current committed suite uses synthetic
+version 3.5 profile/reliability replay. The current committed suite uses synthetic
 fixtures and a generated stress lineup; the numbers below remain historical
-compatibility evidence rather than current 3.4 results.
+compatibility evidence rather than current 3.5 results.
 
 ## Result
 

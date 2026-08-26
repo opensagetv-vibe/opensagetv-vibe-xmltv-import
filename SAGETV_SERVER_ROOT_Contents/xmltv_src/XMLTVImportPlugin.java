@@ -184,7 +184,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
         ContentHandler, ErrorHandler {
 
     //The newline sequence.
-    private static final String ProgramVersion = "3.4";
+    private static final String ProgramVersion = "3.5";
 	//The newline sequence.
     private static final String NEWLINE = System.getProperty("line.separator");
 	//The date format used for logging. 
@@ -251,10 +251,6 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 
 	//The providers (map of provider-id's to a list of configurations).
     private static Map<String, List<Properties>> sProviders;
-	//The properties files.
-    private static Map<File, Properties> sPropertiesFiles;
-
-
 	private String XMLTV_Section="NONE";
 	private String aQName_Start="";
 
@@ -304,6 +300,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
         defaults.put("provider.name", "XMLTV Lineup");
 		defaults.put("provider.id", "");
         defaults.put("xmltv.files", "epgdata.xml");
+		defaults.put("xmltv.profile", "");
 		defaults.put("xmltv.channel.display-name.ShortNameIndex", "0");
 		defaults.put("xmltv.channel.display-name.ShortNameRegex", "");
 		defaults.put("xmltv.channel.display-name.LongNameIndex", "0");
@@ -728,7 +725,6 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      */
     private synchronized static final void readConfigurations() {
         // Reset the entire configuration.
-        sPropertiesFiles = new HashMap<File, Properties>();
         sProviders = new TreeMap<String, List<Properties>>();
 		Set<String> configurationFileNames = new LinkedHashSet<String>();
         Properties xmltvProperties = new Properties(DEFAULTS);
@@ -818,73 +814,25 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * @return the configuration.
      */
     private static final Properties readConfiguration(File aConfigurationFile) {
-        List<File> propertiesList = new LinkedList<File>();
-        includeInPropertiesList(propertiesList, aConfigurationFile);
-        Properties configuration = DEFAULTS;
-        for (int i = propertiesList.size() - 1; i >= 0; --i) {
-            Properties properties = getProperties(propertiesList.get(i));
-            configuration = new Properties(configuration);
-            try {
-                // Copy the content of the properties in the new configuration node.
-                ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-                properties.store(outputStream, null);
-                ByteArrayInputStream inputStream = new ByteArrayInputStream(
-                        outputStream.toByteArray());
+        try {
+            return ConfigurationProfiles.load(aConfigurationFile, DEFAULTS,
+                    new ConfigurationProfiles.LogSink() {
+                        public void log(String message) {
+                            XMLTVImportPlugin.log(message);
+                        }
+                    });
+        } catch (Exception e) {
+            // Profile support is additive. If profile resolution or automatic
+            // generation fails, retain the historical direct-file behavior.
+            log("Unable to resolve XMLTV profile for " + aConfigurationFile + ": " + e);
+            Properties configuration = new Properties(DEFAULTS);
+            try (FileInputStream inputStream = new FileInputStream(aConfigurationFile)) {
                 configuration.load(inputStream);
-            } catch (IOException e) {
-                log(e);
+            } catch (Exception fallbackError) {
+                log(fallbackError);
             }
+            return configuration;
         }
-        return configuration;
-    }
-
-    /**
-     * Add a properties file to a list of properties files and include all 
-     * includes. 
-     * 
-     * @param aPropertiesList the list of properties files.
-     * @param aPropertiesFile the properties file to add.
-     */
-    private static final void includeInPropertiesList(List<File> aPropertiesList,
-            File aPropertiesFile) {
-		try {
-			aPropertiesFile = aPropertiesFile.getCanonicalFile();
-		} catch (IOException e) {
-			aPropertiesFile = aPropertiesFile.getAbsoluteFile();
-		}
-		if (aPropertiesList.contains(aPropertiesFile)) return;
-		aPropertiesList.add(aPropertiesFile);
-        String[] includes = getStrings(getProperty(
-                getProperties(aPropertiesFile), "include"));
-        for (int i = 0; i < includes.length; ++i) {
-			File includeFile = new File(includes[i]);
-			if (!includeFile.isAbsolute()) {
-				includeFile = new File(aPropertiesFile.getParentFile(), includes[i]);
-			}
-			includeInPropertiesList(aPropertiesList, includeFile);
-        }
-    }
-
-    /**
-     * Gets (cached) Properties.
-     * 
-     * @param aPropertiesFile the file object for the properties file.
-     * @return the Properties.
-     */
-    private synchronized static final Properties getProperties(
-            File aPropertiesFile) {
-        Properties properties = null;
-        properties = sPropertiesFiles.get(aPropertiesFile);
-        if (properties == null) {
-            properties = new Properties();
-            try (FileInputStream inputStream = new FileInputStream(aPropertiesFile)) {
-                properties.load(inputStream);
-            } catch (Exception e) {
-                log(e);
-            }
-            sPropertiesFiles.put(aPropertiesFile, properties);
-        }
-        return properties;
     }
 
     /**
@@ -1038,7 +986,8 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		connection.setConnectTimeout(10000);
 		connection.setReadTimeout(20000);
 		connection.setRequestProperty("Accept", "image/png,image/jpeg,image/gif,image/*;q=0.8");
-		connection.setRequestProperty("User-Agent", "OpenSageTV-XMLTVImportPlugin/3.1");
+		connection.setRequestProperty("User-Agent",
+				"OpenSageTV-XMLTVImportPlugin/" + ProgramVersion);
 
 		HttpURLConnection http = connection instanceof HttpURLConnection
 				? (HttpURLConnection) connection : null;

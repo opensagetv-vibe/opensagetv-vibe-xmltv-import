@@ -1,3 +1,10 @@
+##3.5 08/26/2026
+1. Added optional xmltv_<name>.profile files while preserving all existing xmltv.properties, *.xmltv.properties, and include configurations.
+2. Explicit provider-file settings always override the selected profile; selected profiles override common/include values.
+3. Added atomic xmltv.profile=auto generation using provider.name without removing existing settings or overwriting an existing profile.
+4. Added root-level Generic, EPG123, Zap2XML, Pluto, Threadfin, xTeVe, IPTV, OTA_FTA, FTA_60177, and common profiles.
+5. Refactored shipped examples and added legacy compatibility, precedence, case-insensitive selection, missing-profile, and auto-generation regressions.
+
 ##3.4 08/26/2026
 1. Guide imports now return failure for required-stage errors and never replace a lineup after a partial import.
 2. Added bounded HTTP(S), file, gzip, conditional-cache, redirect, and atomic feed acquisition.

@@ -11,6 +11,7 @@ javac -encoding UTF-8 -Xlint:deprecation -Xlint:unchecked --release 8 \
   -classpath "$sage_jar" -d "$out/classes" \
   "$src/Channel.java" "$src/Show.java" "$src/Init.java" \
   "$src/ImportResult.java" "$src/XmltvConfiguration.java" \
+  "$src/ConfigurationProfiles.java" \
   "$src/FeedDownloader.java" "$src/SecureXmlReader.java" \
   "$src/XmltvParser.java" "$src/XmltvDateParser.java" \
   "$src/ExternalCommandRunner.java" "$src/ChannelMapper.java" \
@@ -27,7 +28,8 @@ javac -encoding UTF-8 --release 8 -classpath "$out/classes:$sage_jar" \
   "$root/tests/xmltv/ModernInfrastructureTest.java" \
   "$root/tests/xmltv/ImportFailureHarness.java" \
   "$root/tests/xmltv/MetadataMappingHarness.java" \
-  "$root/tests/xmltv/ProviderReloadTest.java"
+  "$root/tests/xmltv/ProviderReloadTest.java" \
+  "$root/tests/xmltv/ConfigurationProfilesTest.java"
 java -classpath "$out/test-classes:$out/classes:$sage_jar" xmltv.XMLInputStreamFilterTest \
   | tee "$out/test-results/tests.log"
 provider_work="$(mktemp -d)"
@@ -40,6 +42,9 @@ icon_work="$(mktemp -d)"
   | tee -a "$out/test-results/tests.log"
 rm -rf "$icon_work"
 java -classpath "$out/test-classes:$out/classes:$sage_jar" xmltv.ShowIdGeneratorTest \
+  | tee -a "$out/test-results/tests.log"
+java -classpath "$out/test-classes:$out/classes:$sage_jar" \
+  xmltv.ConfigurationProfilesTest "$root/SAGETV_SERVER_ROOT_Contents" \
   | tee -a "$out/test-results/tests.log"
 java -classpath "$out/test-classes:$out/classes:$sage_jar" xmltv.ModernInfrastructureTest \
   | tee -a "$out/test-results/tests.log"
@@ -195,6 +200,7 @@ grep -q 'shows=2 uniqueShowIds=2 conflictingShowIds=0 airings=2 showIdDescriptio
 rm -rf "$bonus_work"
 jar --create --file "$out/packages/XMLTVImportPlugin.jar" -C "$out/classes" xmltv
 cp "$root"/SAGETV_SERVER_ROOT_Contents/*.properties "$out/config-examples/"
+cp "$root"/SAGETV_SERVER_ROOT_Contents/*.profile "$out/config-examples/"
 jar --list --file "$out/packages/XMLTVImportPlugin.jar" | grep -q 'xmltv/XMLTVImportPlugin.class'
 jar --list --file "$out/packages/XMLTVImportPlugin.jar" | grep -q 'xmltv/ShowIdGenerator.class'
 echo "[PASS] XMLTVImportPlugin build"

@@ -92,3 +92,14 @@ runs all tests before packaging. Coverage includes:
 
 The plugin JAR is written to `output/packages/XMLTVImportPlugin.jar`; individual
 logs are written to `output/test-results/`.
+
+## Version 3.5 profiles
+
+Reusable format profiles are optional implicit includes located in the SageTV
+server root. Legacy files without `xmltv.profile` take the unchanged code path.
+The resolver keeps ordinary include chains and applies explicit provider-file
+values last. Automatic generation writes a provider-named profile and updates
+the selection atomically while leaving the original settings in place. Tests
+cover legacy behavior, all precedence levels, missing profiles, include cycles,
+case-insensitive profile selection, safe names, non-overwrite behavior, and
+temporary-file cleanup.

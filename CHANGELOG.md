@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Added optional root-level `xmltv_<name>.profile` inheritance while preserving
+  unchanged behavior for every existing `xmltv.properties`,
+  `*.xmltv.properties`, and `include=` configuration.
+- Defined precedence as built-in defaults, includes/common, selected profile,
+  then the active provider file so every explicit legacy setting still wins.
+- Added atomic `xmltv.profile=auto` migration: create a provider-named profile,
+  include `common.properties`, retain instance-specific values, preserve every
+  existing override, and persist the generated selection without overwriting an
+  existing profile.
+- Added Generic, EPG123, Zap2XML, Pluto, Threadfin, xTeVe, IPTV, OTA/FTA, and
+  commissioned FTA_60177 root profiles plus shared safe defaults.
+- Refactored shipped provider examples to select profiles rather than duplicate
+  format settings, and added precedence/compatibility/auto-generation tests.
 - Changed the guide-update contract to return failure for acquisition, parser,
   command, or SageTV database errors and to withhold `setLineup` after any
   partial failure.

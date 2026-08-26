@@ -11,7 +11,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\opensagetv-dev.ps1 xmltv
 
 The unified Ubuntu 26/OpenJDK 11 environment consumes the locally built Core
 `Sage.jar`, targets Java 8 bytecode, runs the complete suite, and writes
-`output/packages/XMLTVImportPlugin.jar`. The current plugin is version 3.4.
+`output/packages/XMLTVImportPlugin.jar`. The current plugin is version 3.5.
 The supported build never starts/stops SageTV and never removes `Wiz.*`, logs,
 properties, or user data.
 
@@ -34,6 +34,15 @@ The new boundaries are `XmltvConfiguration`, `FeedDownloader`,
 `ChannelMapper`, `ProgrammeMapper`, `SageGuideWriter`, `ImportResult`, and
 `ShowIdAudit`. See `docs/XMLTV_MODERNIZATION.md` for design and regression
 coverage. The build currently emits no unchecked raw-collection warnings.
+
+Version 3.5 adds optional configuration profiles without changing legacy
+resolution when `xmltv.profile` is absent. Profiles and `common.properties`
+live beside `Sage.properties`. Resolution order is built-in defaults, ordinary
+includes/common, selected profile, then the active `.xmltv.properties` file.
+`xmltv.profile=auto` atomically creates a provider-named profile and changes
+only the selection line; the existing provider settings remain authoritative.
+The container seeds missing shipped profiles but never overwrites a user's
+existing root-level profile.
 
 ## Show identities
 
@@ -61,12 +70,13 @@ and bounded to 256x256 by default. Failures do not abort the guide import.
 
 Historical Unraid commissioning on 2026-08-26 used plugin 3.2 and a 107-channel
 private feed: 107/107 logos normalized successfully. This is historical
-evidence, not a claim that private data was rerun for version 3.4.
+evidence, not a claim that private data was rerun for version 3.5.
 
 ## Validation status
 
-The version 3.4 local suite passes secure acquisition/parser tests, provider
+The version 3.5 local suite passes secure acquisition/parser tests, provider
 reload, failure injection, metadata mapping, multi-source imports, Show-ID
-audit/identity tests, channel logos, and a generated 500-channel stress lineup.
+audit/identity tests, profile compatibility/precedence/auto generation, channel
+logos, and a generated 500-channel stress lineup.
 Private corpus files are not retained. Their earlier results are documented in
-`docs/PRIVATE_CORPUS_TEST_REPORT.md` and must not be presented as a 3.4 replay.
+`docs/PRIVATE_CORPUS_TEST_REPORT.md` and must not be presented as a 3.5 replay.
