@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tv generator-info-name="OpenSageTV regression fixture">
+  <channel id="metadata">
+    <display-name>5-1 META</display-name>
+    <display-name>Metadata Channel</display-name>
+    <icon src="https://example.invalid/channel.png"/>
+  </channel>
+  <programme start="20260825100000 -0500" stop="20260825113000 -0500" channel="metadata">
+    <title lang="es">Película de prueba</title>
+    <title lang="en-US">Test Movie</title>
+    <sub-title lang="es">Subtítulo español</sub-title>
+    <sub-title lang="en">English Subtitle</sub-title>
+    <desc lang="es">Descripción española.</desc>
+    <desc lang="en">English description.</desc>
+    <credits>
+      <director>Example Director</director>
+      <actor role="Lead">Example Actor</actor>
+    </credits>
+    <date>20240815</date>
+    <category>Movie</category>
+    <category>Drama</category>
+    <episode-num system="dd_progid">MV01234567.0000</episode-num>
+    <icon src="https://example.invalid/programme.png"/>
+    <country>US</country>
+    <language>English</language>
+    <orig-language>English</orig-language>
+    <rating system="MPAA"><value>PG-13</value></rating>
+    <star-rating><value>3/4</value></star-rating>
+    <video><present>yes</present><colour>yes</colour><aspect>16:9</aspect><quality>HDTV</quality></video>
+    <audio><present>yes</present><stereo>stereo surround DD 5.1</stereo></audio>
+    <subtitles type="teletext"><language>eng</language></subtitles>
+    <new/>
+    <live/>
+    <premiere>series premiere</premiere>
+    <length units="minutes">90</length>
+    <url>https://example.invalid/programme</url>
+  </programme>
+  <programme start="20260825113000 -0500" stop="20260825120000 -0500" channel="metadata">
+    <title lang="en">Test Series</title>
+    <sub-title lang="en">Second Episode</sub-title>
+    <desc lang="en">Series description.</desc>
+    <category>Series</category>
+    <series-id system="provider">SERIES-42</series-id>
+    <episode-num system="xmltv_ns">1/3 . 1/10 . 0/1</episode-num>
+    <rating system="VCHIP"><value>TV-14-V</value></rating>
+    <previously-shown start="20250825113000 -0500"/>
+  </programme>
+  <programme start="20260825120000 -0500" stop="20260825120000 -0500" channel="metadata">
+    <title>Invalid zero-duration airing</title>
+  </programme>
+</tv>

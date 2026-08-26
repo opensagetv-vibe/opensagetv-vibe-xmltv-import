@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tv>
+  <channel id="duplicate"><display-name>12 DUP</display-name></channel>
+  <programme start="20260825120000 +0000" stop="20260825123000 +0000" channel="duplicate">
+    <title>First Provider Record</title><episode-num system="tms">EP999999990001</episode-num>
+  </programme>
+  <programme start="20260825123000 +0000" stop="20260825130000 +0000" channel="duplicate">
+    <title>Conflicting Provider Record</title><episode-num system="tms">EP999999990001</episode-num>
+  </programme>
+</tv>

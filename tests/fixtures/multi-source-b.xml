@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tv>
+  <channel id="multi-a"><display-name>10 MULTIA</display-name><display-name>Multi A Updated</display-name></channel>
+  <programme start="20260825123000 +0000" stop="20260825130000 +0000" channel="multi-a">
+    <title>Multi-source B</title><episode-num system="tms">EP000000020001</episode-num>
+  </programme>
+</tv>

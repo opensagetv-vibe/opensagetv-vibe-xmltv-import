@@ -58,16 +58,19 @@ public class Show {
      * The title.
      */
     String title;
+	String titleLanguage;
 
     /**
      * The episodeName.
      */
     String episodeName;
+	String episodeNameLanguage;
 
     /**
      * The description.
      */
     List<String> descriptions = new LinkedList<String>();
+	List<String> descriptionLanguages = new LinkedList<String>();
 
     /**
      * The people.

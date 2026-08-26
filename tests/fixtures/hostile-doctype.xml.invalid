@@ -1,0 +1,3 @@
+<?xml version="1.0"?>
+<!DOCTYPE tv [<!ENTITY local SYSTEM "file:///etc/passwd">]>
+<tv><channel id="hostile"><display-name>&local;</display-name></channel></tv>

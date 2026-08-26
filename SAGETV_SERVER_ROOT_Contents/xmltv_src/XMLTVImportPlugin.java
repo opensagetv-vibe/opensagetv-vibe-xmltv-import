@@ -137,8 +137,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
 import java.io.BufferedInputStream;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.Files;
@@ -146,9 +144,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
-import java.lang.ref.SoftReference;
 import java.text.MessageFormat;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -160,7 +156,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.LinkedHashSet;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -169,16 +164,12 @@ import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
-import javax.xml.parsers.*;
 import org.xml.sax.Attributes;
 import org.xml.sax.ContentHandler;
 import org.xml.sax.ErrorHandler;
-import org.xml.sax.InputSource;
 import org.xml.sax.Locator;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
-import org.xml.sax.XMLReader;
-import javax.xml.parsers.SAXParserFactory;
 import sage.EPGDBPublic;
 import sage.EPGDBPublic2;
 
@@ -193,7 +184,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
         ContentHandler, ErrorHandler {
 
     //The newline sequence.
-    private static final String ProgramVersion = "3.3";
+    private static final String ProgramVersion = "3.4";
 	//The newline sequence.
     private static final String NEWLINE = System.getProperty("line.separator");
 	//The date format used for logging. 
@@ -227,12 +218,6 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 	//The default properties.
     private static final Properties DEFAULTS = createDefaults();
     private static final String DEFAULT_PROVIDER_ID = "867507149";
-	//The dateformat for parsing XMLTV dates with seconds.
-	private static final SimpleDateFormat DF_SECONDS = new SimpleDateFormat("yyyyMMddHHmmss Z");
-	//The dateformat for parsing XMLTV dates without seconds.
-	private static final SimpleDateFormat DF_MINUTES = new SimpleDateFormat("yyyyMMddHHmm Z");
-	//The dateformat for parsing dates without time.
-    private static final SimpleDateFormat DF_DAY = new SimpleDateFormat("yyyyMMdd");
     //The regular expression for lowercase words <br>
     //(Words containing only lowercase unicode characters).
     private static final Pattern LOWERCASE_WORDS_PATTERN = Pattern.compile(" ([\\p{Ll}]+)");
@@ -246,17 +231,17 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
                     + "\\."
                     + RE_NS_PATTERN);
 	//The ratings in order of restrictiveness.
-    private static final List RATINGS = Arrays.asList(new String[] {"AO",
+    private static final List<String> RATINGS = Arrays.asList(new String[] {"AO",
             "TVM", "NC-17", "R", "TV14", "PG-13", "PG", "TVPG", "G", "TVG",
             "TVY7", "TVY", "NR"});
     //The advisory content strings.
-    private static final List ADVISORY_CONTENT_STRINGS = Arrays
+    private static final List<String> ADVISORY_CONTENT_STRINGS = Arrays
             .asList(new String[] {"Graphic Violence", "Violence",
                     "Mild Violence", "Graphic Language", "Language",
                     "Adult Situations", "Strong Sexual Content", "Nudity",
                     "Brief Nudity", "Rape"});
 	//All credit roles known to Sage.
-    private static final List ROLES = Arrays.asList(new String[] {null,
+    private static final List<String> ROLES = Arrays.asList(new String[] {null,
             "actor", "actor.lead", "actor.support", "actress", "actress.lead",
             "actress.support", "guest", "guest.star", "director", "producer",
             "writer", "choreographer", "sports.figure", "coach", "host",
@@ -265,18 +250,15 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 
 
 	//The providers (map of provider-id's to a list of configurations).
-    private static Map sProviders;
-	//The time that the configurations have been read.
-    private static long sConfigurationsTimestamp;
+    private static Map<String, List<Properties>> sProviders;
 	//The properties files.
-    private static Map sPropertiesFiles;
+    private static Map<File, Properties> sPropertiesFiles;
 
 
-	private static String XMLTV_Section="NONE";
-	private static String aQName_Start="";	
+	private String XMLTV_Section="NONE";
+	private String aQName_Start="";
 
-	//The EPG database passed by SageTV Server
-    private sage.EPGDBPublic2 guide;
+	private SageGuideWriter guideWriter;
     //The current configuration.
     private Properties configuration;
 	//The currently parsed channel.
@@ -284,7 +266,8 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 	//The currently parsed Character.
     private String character;
 	//All parsed channels.
-    private Map channels;
+    private Map<String, Channel> channels;
+	private Map<Integer, String> stationIdOwners;
 	//The currently parsed show.
     private Show show;
 	//The currently Init data from .propties file
@@ -296,11 +279,14 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
     //Intermediate field for storing a value element.
 	private String value;
     //The rating system.
-    private String ratingSystem;
+	private String ratingSystem;
+	private String elementLanguage;
 	//Used to store current ProviderId being processed
 	private String initProviderId;
 	//Generated Show-ID strategy and persistent v2 mapping state.
 	private ShowIdGenerator showIdGenerator;
+	private ImportResult importResult;
+	private XmltvConfiguration typedConfiguration;
 	
 	private static boolean xLogDefaults=true;
 	private static boolean xLogConfiguration=true;
@@ -333,6 +319,16 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		defaults.put("xmltv.show_id.strategy", ShowIdGenerator.LEGACY);
 		defaults.put("xmltv.show_id.v2.map_file", ShowIdGenerator.DEFAULT_V2_MAP_FILE);
 		defaults.put("xmltv.show_id.display", "none");
+		defaults.put("xmltv.download.connect_timeout_ms", "10000");
+		defaults.put("xmltv.download.read_timeout_ms", "30000");
+		defaults.put("xmltv.download.max_bytes", "268435456");
+		defaults.put("xmltv.download.max_redirects", "5");
+		defaults.put("xmltv.validate_before_import", "true");
+		defaults.put("xmltv.parser.max_element_chars", "4194304");
+		defaults.put("xmltv.language.preferred", "");
+		defaults.put("run.before.timeout_ms", "300000");
+		defaults.put("run.before.fail_on_error", "true");
+		defaults.put("run.before.log_command", "false");
 		defaults.put("log.defaults", "true");
 		defaults.put("log.configuration", "true");
 		defaults.put("log.channel", "true");
@@ -389,14 +385,13 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 
         // Log the defaults.
         StringBuffer sb = new StringBuffer();
-        TreeMap map = new TreeMap();
-        Enumeration names = defaults.propertyNames();
+        TreeMap<String, String> map = new TreeMap<String, String>();
+        Enumeration<?> names = defaults.propertyNames();
         while (names.hasMoreElements()) {
             String name = (String) names.nextElement();
             map.put(name, defaults.getProperty(name));
         }
-        for (Iterator it = map.entrySet().iterator(); it.hasNext();) {
-            Map.Entry entry = (Map.Entry) it.next();
+        for (Map.Entry<String, String> entry : map.entrySet()) {
             sb.append(NEWLINE + entry.getKey() + "=" + entry.getValue());
 			
 			
@@ -414,16 +409,16 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      */
     private final void initConfiguration(Properties aConfiguration) {
 		init=new Init();
+		this.typedConfiguration = new XmltvConfiguration(aConfiguration);
         // Log the defaults.
         StringBuffer sb = new StringBuffer();
-        TreeMap map = new TreeMap();
-        Enumeration names = aConfiguration.propertyNames();
+        TreeMap<String, String> map = new TreeMap<String, String>();
+        Enumeration<?> names = aConfiguration.propertyNames();
         while (names.hasMoreElements()) {
             String name = (String) names.nextElement();
             map.put(name, aConfiguration.getProperty(name));
         }
-        for (Iterator it = map.entrySet().iterator(); it.hasNext();) {
-            Map.Entry entry = (Map.Entry) it.next();
+        for (Map.Entry<String, String> entry : map.entrySet()) {
             sb.append(NEWLINE + entry.getKey() + "=" + entry.getValue());
 			
 			Pattern pattern;
@@ -435,7 +430,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 			{
 				String xmltvChannelId=matcher.group(1);
 				//Check if channel already exist
-				Channel InitChannel = (Channel) this.init.channels.get(xmltvChannelId);
+				Channel InitChannel = this.init.channels.get(xmltvChannelId);
 				//If null channel does not exist create new one
 				if (InitChannel == null) InitChannel= new Channel(xmltvChannelId);
 				//split all the name from .properties value
@@ -453,7 +448,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 			{
 				String xmltvChannelId=matcher.group(1);
 				//Check if channel already exist
-				Channel InitChannel = (Channel) this.init.channels.get(xmltvChannelId);
+				Channel InitChannel = this.init.channels.get(xmltvChannelId);
 				//If null channel does not exist create new one
 				if (InitChannel == null) InitChannel= new Channel(xmltvChannelId);
 				//store network value
@@ -469,7 +464,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 			{
 				String xmltvChannelId=matcher.group(1);
 				//Check if channel already exist
-				Channel InitChannel = (Channel) this.init.channels.get(xmltvChannelId);
+				Channel InitChannel = this.init.channels.get(xmltvChannelId);
 				//If null channel does not exist create new one
 				if (InitChannel == null) InitChannel= new Channel(xmltvChannelId);
 				//split all the name from .properties value
@@ -486,28 +481,34 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 	    xLogChannel=isTrue(getProperty(aConfiguration, "log.channel"),true);
 		xLogShow=isTrue(getProperty(aConfiguration, "log.show"),true);
 			
-        if(xLogConfiguration)log("Configuration:" + sb);
+		if(xLogConfiguration)log("Configuration:" + this.typedConfiguration.redactedDump(NEWLINE));
 
         this.configuration = aConfiguration;
-		this.init.ChannelShortNameIndex = Byte.parseByte(getProperty(aConfiguration, "xmltv.channel.display-name.ShortNameIndex"));
+        this.init.ChannelShortNameIndex = this.typedConfiguration.getInt(
+				"xmltv.channel.display-name.ShortNameIndex", 0, 0, 10000);
 		this.init.ChannelShortNameRegEx = getProperty(aConfiguration, "xmltv.channel.display-name.ShortNameRegex");
-		this.init.ChannelLongNameIndex = Byte.parseByte(getProperty(aConfiguration, "xmltv.channel.display-name.LongNameIndex"));
+		if (this.init.ChannelShortNameRegEx != null && this.init.ChannelShortNameRegEx.length() > 0) {
+			this.init.ChannelShortNamePattern = Pattern.compile(this.init.ChannelShortNameRegEx);
+		}
+		this.init.ChannelLongNameIndex = this.typedConfiguration.getInt(
+				"xmltv.channel.display-name.LongNameIndex", 0, 0, 10000);
 		this.init.SagetvChannelNumberSeparator=getProperty(aConfiguration, "sagetv.channel.NumberSeparator");
 		if(this.init.SagetvChannelNumberSeparator==null || !this.init.SagetvChannelNumberSeparator.equals("-"))
 			this.init.SagetvChannelNumberSeparator=".";
 		
-		String SagetvChannelNumberOffset = getProperty(aConfiguration, "sagetv.channel.NumberOffset");
-		if(SagetvChannelNumberOffset==null)
-			this.init.SagetvChannelNumberOffset=0;
-		else
-			this.init.SagetvChannelNumberOffset=Integer.parseInt(SagetvChannelNumberOffset);
+		this.init.SagetvChannelNumberOffset = this.typedConfiguration.getInt(
+				"sagetv.channel.NumberOffset", 0, -1000000, 1000000);
 		
 		this.init.SagetvShowIcon = isTrue(getProperty(aConfiguration, "sagetv.show.Icon"),false);
 		
 		this.init.ChannelNumberTag = getProperty(aConfiguration, "xmltv.channel.NumberTag");
-		this.init.ChannelNumberTagIndex = Byte.parseByte(getProperty(aConfiguration, "xmltv.channel.NumberTagIndex"));
+		this.init.ChannelNumberTagIndex = this.typedConfiguration.getInt(
+				"xmltv.channel.NumberTagIndex", 0, 0, 10000);
 		
 		this.init.ChannelNumberTagRegEx = getProperty(aConfiguration, "xmltv.channel.NumberTagRegEx");
+		if (this.init.ChannelNumberTagRegEx != null && this.init.ChannelNumberTagRegEx.length() > 0) {
+			this.init.ChannelNumberTagPattern = Pattern.compile(this.init.ChannelNumberTagRegEx);
+		}
 		
 		this.init.SagetvChannelIconDownload = isChannelIconDownloadEnabled(aConfiguration);
 		this.init.SagetvChannelIconMaxWidth = getBoundedPositiveInt(
@@ -527,9 +528,17 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 				&& !this.init.ShowIdDisplay.equals("bonus")) {
 			throw new IllegalArgumentException("xmltv.show_id.display must be none, description, or bonus");
 		}
+		this.init.XmltvMaxElementChars = this.typedConfiguration.getInt(
+				"xmltv.parser.max_element_chars", 4194304, 1024, 67108864);
+		this.init.PreferredLanguage = this.typedConfiguration.get(
+				"xmltv.language.preferred", "").toLowerCase(java.util.Locale.ROOT);
 		
 		
 		this.initProviderId=getProperty(aConfiguration, "provider.id");
+		if (this.initProviderId != null) {
+			this.initProviderId = Long.toString(this.typedConfiguration.getLong(
+					"provider.id", 0L, 1L, Long.MAX_VALUE));
+		}
 
 
         this.init.channelIds = Arrays.asList(getStrings(getProperty(aConfiguration, "channel.ids")));
@@ -568,8 +577,8 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
         this.init.guestRole = (byte) ROLES.indexOf(getProperty(aConfiguration,
                 "credits.guest"));
 
-        this.init.splitMovieDetectTime = Long.parseLong(getProperty(aConfiguration,
-                "split.movie.detect.time"));
+        this.init.splitMovieDetectTime = this.typedConfiguration.getLong(
+				"split.movie.detect.time", 14400000L, 0L, 604800000L);
 		String showIdMapFile = getProperty(aConfiguration, "xmltv.show_id.v2.map_file");
 		if (showIdMapFile == null || showIdMapFile.trim().length() == 0) {
 			showIdMapFile = ShowIdGenerator.DEFAULT_V2_MAP_FILE;
@@ -593,16 +602,16 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 
         this.init.maxStars = getIntProperty(aConfiguration, "max.stars");
 
-        this.init.categoryTranslations = new HashMap();
+        this.init.categoryTranslations = new HashMap<List<String>, List<String>>();
         this.init.maxCategoryTranslationLength = 0;
         names = aConfiguration.propertyNames();
         while (names.hasMoreElements()) {
             String name = (String) names.nextElement();
             if (name.startsWith("translate.category.")) {
                 String translation = aConfiguration.getProperty(name);
-                List from = Arrays.asList(name.substring(19).split(" */ *"));
-                List to = translation.length() > 0 ? Arrays.asList(translation
-                        .split(" */ *")) : Collections.EMPTY_LIST;
+                List<String> from = Arrays.asList(name.substring(19).split(" */ *"));
+                List<String> to = translation.length() > 0 ? Arrays.asList(translation
+                        .split(" */ *")) : Collections.<String>emptyList();
                 this.init.categoryTranslations.put(from, to);
                 if (this.init.maxCategoryTranslationLength < from.size()) {
                     this.init.maxCategoryTranslationLength = from.size();
@@ -657,6 +666,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 			try {
 				this.showIdGenerator.flush();
 			} catch (IOException e) {
+				recordImportFailure("Show-ID mapping persistence", e);
 				log("Unable to persist XMLTV v2 Show-ID mappings: " + e);
 			}
 			this.showIdGenerator = null;
@@ -679,13 +689,15 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
         this.init.categoriesForStarRating = null;
         this.init.dateYearDecoration = null;
 		this.init=null;
+		this.typedConfiguration = null;
     }
 
     /**
      * Init for a provider.
      */
     private final void initProvider() {
-        this.channels = new HashMap();
+        this.channels = new HashMap<String, Channel>();
+		this.stationIdOwners = new HashMap<Integer, String>();
     }
 
     /**
@@ -695,6 +707,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
         // Resetting this object prevents use of it out of context.
         // (also prevents a minor memory leak).
         this.channels = null;
+		this.stationIdOwners = null;
     }
 
     /**
@@ -703,21 +716,10 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * If the configuration files have changed they will be reread.
      * @return the list of configurations.
      */
-    private synchronized static final Map getProviders() {
-        if (sProviders == null) {
-            // First time.
-            readConfigurations();
-        } else {
-            for (Iterator it = sPropertiesFiles.keySet().iterator(); it
-                    .hasNext();) {
-                File propertiesFile = (File) it.next();
-                if (propertiesFile.lastModified() > sConfigurationsTimestamp) {
-                    // At least one configuration file has changed.
-                    readConfigurations();
-                    break;
-                }
-            }
-        }
+    private synchronized static final Map<String, List<Properties>> getProviders() {
+        // Provider files are small and setup/update calls are infrequent. A
+        // fresh read also detects newly created, replaced, or deleted files.
+        readConfigurations();
         return sProviders;
     }
 
@@ -726,17 +728,14 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      */
     private synchronized static final void readConfigurations() {
         // Reset the entire configuration.
-        sConfigurationsTimestamp = currentTimeMillis();
-        sPropertiesFiles = new HashMap();
-        sProviders = new TreeMap();
-		List<String> listConfigFileNames=new ArrayList<>(); ;
+        sPropertiesFiles = new HashMap<File, Properties>();
+        sProviders = new TreeMap<String, List<Properties>>();
+		Set<String> configurationFileNames = new LinkedHashSet<String>();
         Properties xmltvProperties = new Properties(DEFAULTS);
-        try { //Process xmltv.properties
-            FileInputStream inputStream = new FileInputStream("xmltv.properties");
+        try (FileInputStream inputStream = new FileInputStream("xmltv.properties")) {
             xmltvProperties.load(inputStream);
-            inputStream.close();
-			String[] ConfigFileFileNames = getStrings(getProperty(xmltvProperties, "configurations"));
-			for (int x = 0; x < ConfigFileFileNames.length; x++)listConfigFileNames.add(ConfigFileFileNames[x]);	
+			configurationFileNames.addAll(Arrays.asList(
+					getStrings(getProperty(xmltvProperties, "configurations"))));
         } catch (Exception e) {
             log("xmltv.properties not found processing *.xmltv.properties files");
         }
@@ -747,16 +746,22 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 					public boolean accept(File file) {
 						return file.getName().toLowerCase().endsWith(".xmltv.properties");}});	
 						
-			for (int i = 0; i < files.length; i++)listConfigFileNames.add(files[i].getName());		  
+			if (files != null) {
+				for (File file : files) configurationFileNames.add(file.getName());
+			}
 			
         } catch (Exception e) {
             log(e);
         }		
 		        
 		
-		String[] configurationFileNames=listConfigFileNames.toArray(new String[0]);
-        for (int i = 0; i < configurationFileNames.length; ++i) {
-            Properties configuration = readConfiguration(new File(configurationFileNames[i]));
+		for (String configurationFileName : configurationFileNames) {
+			File configurationFile = new File(configurationFileName);
+			if (!configurationFile.isFile()) {
+				log("Skipping missing XMLTV configuration: " + configurationFile.getAbsolutePath());
+				continue;
+			}
+            Properties configuration = readConfiguration(configurationFile);
             String providerId = getProperty(configuration, "provider.id");
             if (providerId == null) {
                 String providerName = getProperty(configuration,"provider.name");
@@ -773,10 +778,19 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
                     }
                     providerId = Long.toString(crc32.getValue());
                 }
+			} else {
+				try {
+					long numericProviderId = Long.parseLong(providerId);
+					if (numericProviderId <= 0) throw new NumberFormatException("not positive");
+				} catch (NumberFormatException e) {
+					log("Skipping XMLTV configuration with invalid provider.id: "
+							+ configurationFile.getAbsolutePath());
+					continue;
+				}
             }
-            List configurations = (List) sProviders.get(providerId);
+            List<Properties> configurations = sProviders.get(providerId);
             if (configurations == null) {
-                configurations = new LinkedList();
+                configurations = new LinkedList<Properties>();
                 sProviders.put(providerId, configurations);
 				
             }
@@ -790,7 +804,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
         // documented defaults and can be configured later.
         if (sProviders.isEmpty()) {
             Properties defaultConfiguration = new Properties(DEFAULTS);
-            List configurations = new LinkedList();
+            List<Properties> configurations = new LinkedList<Properties>();
             configurations.add(defaultConfiguration);
             sProviders.put(DEFAULT_PROVIDER_ID, configurations);
             log("No XMLTV provider configuration found; exposing the default XMLTV Lineup provider.");
@@ -804,11 +818,11 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * @return the configuration.
      */
     private static final Properties readConfiguration(File aConfigurationFile) {
-        List propertiesList = new LinkedList();
+        List<File> propertiesList = new LinkedList<File>();
         includeInPropertiesList(propertiesList, aConfigurationFile);
         Properties configuration = DEFAULTS;
         for (int i = propertiesList.size() - 1; i >= 0; --i) {
-            Properties properties = getProperties((File) propertiesList.get(i));
+            Properties properties = getProperties(propertiesList.get(i));
             configuration = new Properties(configuration);
             try {
                 // Copy the content of the properties in the new configuration node.
@@ -831,16 +845,23 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * @param aPropertiesList the list of properties files.
      * @param aPropertiesFile the properties file to add.
      */
-    private static final void includeInPropertiesList(List aPropertiesList,
+    private static final void includeInPropertiesList(List<File> aPropertiesList,
             File aPropertiesFile) {
-        aPropertiesList.add(aPropertiesFile);
+		try {
+			aPropertiesFile = aPropertiesFile.getCanonicalFile();
+		} catch (IOException e) {
+			aPropertiesFile = aPropertiesFile.getAbsoluteFile();
+		}
+		if (aPropertiesList.contains(aPropertiesFile)) return;
+		aPropertiesList.add(aPropertiesFile);
         String[] includes = getStrings(getProperty(
                 getProperties(aPropertiesFile), "include"));
         for (int i = 0; i < includes.length; ++i) {
-            File includeFile = new File(includes[i]);
-            if (!aPropertiesList.contains(includeFile)) {
-                includeInPropertiesList(aPropertiesList, includeFile);
-            }
+			File includeFile = new File(includes[i]);
+			if (!includeFile.isAbsolute()) {
+				includeFile = new File(aPropertiesFile.getParentFile(), includes[i]);
+			}
+			includeInPropertiesList(aPropertiesList, includeFile);
         }
     }
 
@@ -853,23 +874,15 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
     private synchronized static final Properties getProperties(
             File aPropertiesFile) {
         Properties properties = null;
-        SoftReference ref = (SoftReference) sPropertiesFiles
-                .get(aPropertiesFile);
-        if (ref != null) {
-            properties = (Properties) ref.get();
-        }
+        properties = sPropertiesFiles.get(aPropertiesFile);
         if (properties == null) {
             properties = new Properties();
-            try {
-                FileInputStream inputStream = new FileInputStream(
-                        aPropertiesFile);
+            try (FileInputStream inputStream = new FileInputStream(aPropertiesFile)) {
                 properties.load(inputStream);
-                inputStream.close();
             } catch (Exception e) {
                 log(e);
             }
-            sPropertiesFiles
-                    .put(aPropertiesFile, new SoftReference(properties));
+            sPropertiesFiles.put(aPropertiesFile, properties);
         }
         return properties;
     }
@@ -1181,7 +1194,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		logger(aObject, sDebugLogPrinter);
 	}
 
-    static final void logger(Object aObject, PrintStream aLog) {
+    static synchronized final void logger(Object aObject, PrintStream aLog) {
         if (aObject == null) {
             aLog.println("null");
 		} else if (aObject instanceof String) {
@@ -1226,6 +1239,8 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 				aLogPrinter = new PrintStream(new FileOutputStream(aLog, true));
 			
 		}catch (Exception e) {
+			e.printStackTrace(System.err);
+			return System.err;
 		}
 		return aLogPrinter;
 	}
@@ -1236,21 +1251,21 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      */
     private synchronized static final void closeLoggers() {
         if (sLogPrinter != null) {
-            if (sLogPrinter != System.out) {
+            if (sLogPrinter != System.out && sLogPrinter != System.err) {
                 sLogPrinter.close();
             }
             sLogPrinter = null;
         }
 		
 		if (sDebugLogPrinter != null) {
-            if (sDebugLogPrinter != System.err) {
+            if (sDebugLogPrinter != System.out && sDebugLogPrinter != System.err) {
                 sDebugLogPrinter.close();
             }
             sDebugLogPrinter = null;
         }
 		
 		if (sXmltvLogPrinter != null) {
-            if (sXmltvLogPrinter != System.err) {
+            if (sXmltvLogPrinter != System.out && sXmltvLogPrinter != System.err) {
                 sXmltvLogPrinter.close();
             }
             sXmltvLogPrinter = null;
@@ -1290,14 +1305,13 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * @return the array.
      */
     private static final String[][] getProviderArray() {
-        Map providers = getProviders();
+        Map<String, List<Properties>> providers = getProviders();
         String[][] localMarkets = new String[providers.size()][2];
         int i = 0;
-        for (Iterator it = providers.entrySet().iterator(); it.hasNext();) {
-            Map.Entry entry = (Map.Entry) it.next();
-            localMarkets[i][0] = (String) entry.getKey();
-            List configurations = (List) entry.getValue();
-            Properties configuration = (Properties) configurations.get(0);
+        for (Map.Entry<String, List<Properties>> entry : providers.entrySet()) {
+            localMarkets[i][0] = entry.getKey();
+            List<Properties> configurations = entry.getValue();
+            Properties configuration = configurations.get(0);
             localMarkets[i][1] = getProperty(configuration, "provider.name");
             ++i;
         }
@@ -1368,9 +1382,10 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 	* public boolean updateGuide(String providerID, EPGDBPublic dbInterface);
 	*/
     public final boolean updateGuide(String aProviderId, EPGDBPublic aGuide) {
-        try 
-		{
-			
+        ImportResult result = new ImportResult();
+        this.importResult = result;
+        boolean providerInitialized = false;
+        try {
 			File TEMP_LOG_FILE = new File("xmltv_" + aProviderId +"_temp.log");
 			LOG_FILE=TEMP_LOG_FILE;
 			log("Version: " + this.ProgramVersion);
@@ -1378,14 +1393,24 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 			logXMLTV("Version: " + this.ProgramVersion);
 			logXMLTV("updateGuide(" + aProviderId + ", " + aGuide + ")");
 			
-            initProvider();
+			if (aProviderId == null || aGuide == null) {
+				result.fail("provider", "provider ID and guide database are required");
+				return false;
+			}
+			if (!(aGuide instanceof EPGDBPublic2)) {
+				result.fail("provider", "SageTV guide database does not implement EPGDBPublic2");
+				return false;
+			}
+			Long.parseLong(aProviderId);
+			initProvider();
+			providerInitialized = true;
 
-			this.guide = (EPGDBPublic2) aGuide;
+			this.guideWriter = new SageGuideWriter((EPGDBPublic2) aGuide);
 			String providerName="";
-			if (aProviderId != null && aGuide!=null) {
-				List configurations = getConfigurations(aProviderId);
+			List<Properties> configurations = getConfigurations(aProviderId);
+			if (!configurations.isEmpty()) {
 				if (configurations.size() > 0) {
-					providerName = getProperty((Properties) configurations.get(0),"provider.name");
+					providerName = getProperty(configurations.get(0),"provider.name");
 					log("Provider name = " + providerName);
 					logXMLTV("Provider name = " + providerName);
 					logXMLTV("Start guide update for " + providerName);
@@ -1405,22 +1430,26 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 					//Delete the old temp log file
 					TEMP_LOG_FILE.delete();
 					int i = 0;
-					for (Iterator it = configurations.iterator(); it.hasNext();) {
-						Properties config = (Properties) it.next();
+					for (Properties config : configurations) {
+						result.configurationStarted();
+						int failuresBefore = result.getFailureCount();
 						try {
 							log("Configuration "+ providerName+ "["+ i++ + "]");
-							updateGuide(config);
-						} catch (Throwable t) {
-							log(t);
-							// Continue with the next configuration.
+							if (updateConfiguration(config)
+									&& result.getFailureCount() == failuresBefore) {
+								result.configurationSucceeded();
+							}
+						} catch (Exception e) {
+							log(e);
+							result.fail("configuration " + (i - 1), e);
 						}
 					}
 				}
 
-				TreeMap lineup = new TreeMap();
+				TreeMap<Integer, String[]> lineup = new TreeMap<Integer, String[]>();
 				int nextChannelNumber = 2;
-				for (Iterator i = this.channels.values().iterator(); i.hasNext();) {
-					this.channel = (Channel) i.next();
+				for (Channel availableChannel : this.channels.values()) {
+					this.channel = availableChannel;
 					if (this.channel.numbers.size() == 0) {
 						lineup.put(this.channel.STVstationID, new String[] {Integer.toString(nextChannelNumber++)});
 					} else {
@@ -1435,27 +1464,35 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 				   * is on channel numbers 3 and 94, the map would contain a: Integer(34)->{"3", "94"}
 					public void setLineup(long providerID, java.util.Map lineupMap);
 				   */
-				aGuide.setLineup(Long.parseLong(aProviderId), lineup);
-				logXMLTV("Finish guide update for " + providerName);
+				if (!result.hasFailures()) {
+					this.guideWriter.setLineup(Long.parseLong(aProviderId), lineup);
+					logXMLTV("Finish guide update for " + providerName);
+				} else {
+					logXMLTV("Guide update failed; existing lineup was not replaced for " + providerName);
+				}
 			}
 			else
 			{
-				logXMLTV("updateGuide called with aProviderId or aGuide was null");
+				result.fail("provider", "no configuration found for provider " + aProviderId);
+				logXMLTV("No configuration found for provider " + aProviderId);
 			}
 
 
-        } catch (Throwable t) {
-            log(t);
+        } catch (Error error) {
+			log(error);
+			throw error;
+		} catch (Exception exception) {
+			log(exception);
+			result.fail("provider update", exception);
         } finally {
+			log("Import summary: " + result);
+			for (String failure : result.getFailures()) log("Import failure: " + failure);
             cleanup();
-			exitProvider();		
+			if (providerInitialized) exitProvider();
+			this.guideWriter = null;
+			this.importResult = null;
         }
-
-        // Never return false. Even if something has gone wrong, a lot of things 
-        // might have gone right. If something is really wrong it will be 
-        // apparent through missing sections in the guide. Errors can be found
-        // in the exceptions log.
-		return true;
+		return result.isSuccessful();
 		
     }
 
@@ -1465,15 +1502,15 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * @param aProviderId the provider.
      * @return the list of configurations for that provider.
      */
-    private static synchronized final List getConfigurations(String aProviderId) {
-        List configurations = null;
+    private static synchronized final List<Properties> getConfigurations(String aProviderId) {
+        List<Properties> configurations = null;
         if (aProviderId != null) {
-            Map providers = getProviders();
+            Map<String, List<Properties>> providers = getProviders();
             if (providers != null) {
-                configurations = (List) providers.get(aProviderId);
+                configurations = providers.get(aProviderId);
             }
         }
-        return configurations == null ? Collections.EMPTY_LIST : configurations;
+        return configurations == null ? Collections.<Properties>emptyList() : configurations;
     }
 
     /**
@@ -1481,81 +1518,78 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * 
      * @param aConfiguration the configuration that is used for the update.
      */
-    private final void updateGuide(Properties aConfiguration) {
-        initConfiguration(aConfiguration);
+    private final boolean updateConfiguration(Properties aConfiguration) {
+        boolean initialized = false;
+        boolean successful = true;
         try {
+			initConfiguration(aConfiguration);
+			initialized = true;
             waitForTimeslot(aConfiguration);
-            executeRunBefore(aConfiguration);
-            try {
-                //XMLReader xmlReader = XMLReaderFactory.createXMLReader();
-				SAXParserFactory parserFactory = SAXParserFactory.newInstance();
-				SAXParser parser = parserFactory.newSAXParser();
-				XMLReader xmlReader = parser.getXMLReader();
-                xmlReader.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
-                xmlReader.setContentHandler(this);
-                xmlReader.setErrorHandler(this);
-                String[] xmltvFiles = getStrings(getProperty(aConfiguration,"xmltv.files"));
-                boolean inputStreamFilter = isTrue(getProperty(aConfiguration, "inputstream.filter"));;
-				String XMLTV_FILE = "xmltv_" + getProperty(configuration, "provider.name") +  ".xml" ;
-                for (int i = 0; i < xmltvFiles.length; ++i) {
-                    try {
-						InputStream in;
-						// it double forward slash found it means a URL
-						if(xmltvFiles[i].toString().contains("://")) 
-						{
-							log("Downloading  " + xmltvFiles[i] + " to " + XMLTV_FILE);
-							downloadUsingNIO(xmltvFiles[i], XMLTV_FILE);
-						}
-						else
-						{
-							log("Copying  " + xmltvFiles[i] + " to " + XMLTV_FILE);
-							File src = new File(xmltvFiles[i]);
-							File dest = new File(XMLTV_FILE);
-        					// using copy(InputStream,Path Target); method
-							Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
-						}
-						log("Opening : " +  XMLTV_FILE);
-						in = new FileInputStream(XMLTV_FILE);
-						if(in==null)throw new RuntimeException("Can not open xmltv file");
-						
-                        if (inputStreamFilter) {
-                            in = new XMLInputStreamFilter(in);
-                        }
-						log("Parseing: " + XMLTV_FILE);
-                        xmlReader.parse(new InputSource(in));
-                        in.close();
-                    } catch (Throwable t) {
-                        log(t);
-                        // Continue with the next file.
-                    }
+			if (!executeRunBefore(aConfiguration)) return false;
+            String[] xmltvFiles = getStrings(getProperty(aConfiguration,"xmltv.files"));
+            boolean inputStreamFilter = isTrue(getProperty(aConfiguration, "inputstream.filter"));
+			if (xmltvFiles.length == 0) {
+				this.importResult.fail("feed", "no xmltv.files sources are configured");
+				return false;
+			}
+			FeedDownloader.Options options = new FeedDownloader.Options(
+					this.typedConfiguration.getInt("xmltv.download.connect_timeout_ms", 10000, 100, 600000),
+					this.typedConfiguration.getInt("xmltv.download.read_timeout_ms", 30000, 100, 600000),
+					this.typedConfiguration.getLong("xmltv.download.max_bytes", 268435456L,
+							1024L, 2147483648L),
+					this.typedConfiguration.getInt("xmltv.download.max_redirects", 5, 0, 20));
+			String providerFileName = safeFileComponent(getProperty(aConfiguration, "provider.name"));
+            for (int i = 0; i < xmltvFiles.length; ++i) {
+				this.importResult.feedStarted();
+				String cacheName = "xmltv_" + providerFileName
+						+ (i == 0 ? "" : "_" + (i + 1)) + ".xml";
+                try {
+					log("Acquiring " + XmltvConfiguration.redactUri(xmltvFiles[i])
+							+ " to " + cacheName);
+					File cached = FeedDownloader.acquire(xmltvFiles[i], new File(cacheName), options);
+					this.show = null;
+					this.channel = null;
+					this.text = null;
+					log("Parsing: " + cached.getName());
+					XmltvParser.parse(cached, inputStreamFilter,
+							this.typedConfiguration.getBoolean("xmltv.validate_before_import", true),
+							this, this);
+					this.importResult.feedSucceeded();
+                } catch (Exception exception) {
+					successful = false;
+					this.importResult.fail("feed " + (i + 1), exception);
+					log(exception);
                 }
+            }
 
-                for (Iterator it = this.init.channelIds.iterator(); it.hasNext();) {
+                for (Iterator<String> it = this.init.channelIds.iterator(); it.hasNext();) {
                     // Add missing channels.
-                    String xmltvChannelId = (String) it.next();
+                    String xmltvChannelId = it.next();
                     if (!this.channels.containsKey(xmltvChannelId) && !xmltvChannelId.equals("*")) {
                         this.channel = new Channel(xmltvChannelId);
                         addChannelToGuide();
                     }
                 }
                 this.channel = null;
-
-            } catch (Throwable t) {
-                log(t);
-            }
+			return successful;
+		} catch (Error error) {
+			throw error;
+		} catch (Exception exception) {
+			this.importResult.fail("configuration", exception);
+			log(exception);
+			return false;
         } finally {
-            exitConfiguration();
+			if (initialized || this.init != null) exitConfiguration();
         }
     }
-	
-    private static void downloadUsingNIO(String urlStr, String file) throws IOException {
-        URL url = new URL(urlStr);
-        ReadableByteChannel rbc = Channels.newChannel(url.openStream());
-        FileOutputStream fos = new FileOutputStream(file);
-        fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
-        fos.close();
-        rbc.close();
-    }
+
+	private static String safeFileComponent(String value) {
+		String safe = value == null ? "provider" : value.replaceAll("[^A-Za-z0-9._-]", "_");
+		while (safe.contains("..")) safe = safe.replace("..", "_");
+		if (safe.length() == 0) safe = "provider";
+		return safe.length() > 80 ? safe.substring(0, 80) : safe;
+	}
+
 
 
     /**
@@ -1607,7 +1641,8 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
         try {
             Thread.sleep(from.getTimeInMillis() - now.getTimeInMillis());
         } catch (InterruptedException e) {
-            log(e);
+			Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for XMLTV import timeslot", e);
         }
         log("Waited for timeslot since " + now.getTime());
         log("Continuing update.");
@@ -1620,25 +1655,44 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * 
      * @param aConfiguration the configuration.
      */
-    private final void executeRunBefore(Properties aConfiguration) {
+    private final boolean executeRunBefore(Properties aConfiguration) {
         try {
             String runBefore = getProperty(aConfiguration, "run.before");
-            if (null != runBefore) {
-                log("Executing: \"" + runBefore + "\"");
-                Process process = Runtime.getRuntime().exec(runBefore);
-
-                log("stdout:");
-                log(process.getInputStream());
-
-                log("stderr:");
-                logDebug(process.getErrorStream());
-
-                process.waitFor();
-                log("Execution complete.");
-            }
-        } catch (Throwable t) {
-            log(t);
-            // We don't know if this is fatal for the update, so just carry on...
+			if (runBefore == null || runBefore.trim().length() == 0) return true;
+			if (this.typedConfiguration.getBoolean("run.before.log_command", false)) {
+				log("Executing run.before: " + runBefore);
+			} else {
+				log("Executing configured run.before command (command text redacted)");
+			}
+			long timeout = this.typedConfiguration.getLong("run.before.timeout_ms",
+					300000L, 100L, 3600000L);
+			ExternalCommandRunner.Result result = ExternalCommandRunner.run(runBefore,
+					timeout, new ExternalCommandRunner.LogSink() {
+						public void log(String line) {
+							XMLTVImportPlugin.log("run.before: " + line);
+						}
+					});
+			if (result.isSuccessful()) {
+				log("run.before completed successfully");
+				return true;
+			}
+			String message = result.timedOut ? "run.before timed out"
+					: "run.before exited with status " + result.exitCode;
+			log(message);
+			if (this.typedConfiguration.getBoolean("run.before.fail_on_error", true)) {
+				this.importResult.fail("run.before", message);
+				return false;
+			}
+			return true;
+        } catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			this.importResult.fail("run.before", e);
+			log(e);
+			return false;
+        } catch (Exception e) {
+			this.importResult.fail("run.before", e);
+			log(e);
+			return false;
         }
     }
 
@@ -1647,6 +1701,9 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
     public final void characters(char[] aCh, int aStart, int aLength)
             throws SAXException {
         if (this.text != null) {
+			if (this.text.length() + aLength > this.init.XmltvMaxElementChars) {
+				throw new SAXException("XMLTV element text exceeds configured limit");
+			}
             this.text.append(aCh, aStart, aLength);
         }
     }
@@ -1662,6 +1719,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
     public final void startElement(String aNamespaceURI, String aLocalName,
             String aQName, Attributes aAttributes) throws SAXException {	
 		aQName_Start=aQName;
+		this.elementLanguage = aAttributes.getValue("lang");
 		this.text = new StringBuffer();  //New String buffer to parse and text values
         if (aQName.equals("channel")) {	
 			XMLTV_Section="channel";
@@ -1708,8 +1766,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
                 || aQName.equals("colour")
                 || aQName.equals("aspect")
                 || aQName.equals("quality")
-                || aQName.equals("stereo")
-                || aQName.equals("subtitles") || aQName.equals("value"))
+                || aQName.equals("stereo") || aQName.equals("value"))
                 ) {
 				//NOP	
 		} else if (aQName.equals("actor")) {
@@ -1728,6 +1785,10 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 				}
         } else if (aQName.equals("previously-shown")) {
             this.show.is_rerun = true;
+			String previousStart = aAttributes.getValue("start");
+			if (previousStart != null && previousStart.trim().length() > 0) {
+				this.show.previous_start = parseXmltvDate(previousStart);
+			}
         } else if (aQName.equals("premiere")) {
             this.show.is_premiere = true;
         } else if (aQName.equals("new")) {
@@ -1805,8 +1866,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 			
 			if(this.show.date != null && this.show.year==null )
 			{
-				SimpleDateFormat formatYear = new SimpleDateFormat("yyyy");
-				this.show.year = formatYear.format(this.show.date);
+				this.show.year = XmltvDateParser.year(this.show.date);
 			}
 
 			addShowToGuide();  //Data is ready to add to the guide
@@ -1815,12 +1875,26 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		} else if (XMLTV_Section.equals("channel") && aQName.equals("display-name") && this.channel != null) {
 			this.channel.xmltvDisplayNames.add(this.text.toString());
 		} else if (aQName.equals("title")) {
-			this.show.title = this.text.toString();
+			if (shouldUseLanguage(this.show.titleLanguage, this.elementLanguage)) {
+				this.show.title = this.text.toString();
+				this.show.titleLanguage = this.elementLanguage;
+			}
 		} else if (aQName.equals("sub-title")) {
-			this.show.episodeName = this.text.toString();
+			if (shouldUseLanguage(this.show.episodeNameLanguage, this.elementLanguage)) {
+				this.show.episodeName = this.text.toString();
+				this.show.episodeNameLanguage = this.elementLanguage;
+			}
 		} else if (aQName.equals("desc")){ 
-			if (!XMLTV_Section.equals("channel"))
-				this.show.descriptions.add(this.text.toString()); //Filter if desc is from channel section
+			if (!XMLTV_Section.equals("channel")) {
+				String description = this.text.toString();
+				if (isPreferredLanguage(this.elementLanguage)) {
+					this.show.descriptions.add(0, description);
+					this.show.descriptionLanguages.add(0, this.elementLanguage);
+				} else {
+					this.show.descriptions.add(description);
+					this.show.descriptionLanguages.add(this.elementLanguage);
+				}
+			}
 		} else if (aQName.equals("director")) {
 			addPersonToShow(this.text.toString(), this.init.directorRole, "Director");
 		} else if (aQName.equals("actor")) {
@@ -1839,22 +1913,15 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 			addPersonToShow(this.text.toString(), this.init.guestRole, "Guest");
 		} else if (aQName.equals("date")) {
 			String date = this.text.toString();
-			try
-			{
-			
-				if (date.length() >= 8) 
-				{
-					this.show.date = DF_DAY.parse(date.substring(0, 8));						
-				} 
+			try {
+				if (date.length() >= 8) {
+					this.show.date = XmltvDateParser.parseDay(date);
+				}
 				
-				if (date.length() == 4) 
-				{
+				if (date.length() == 4) {
 					this.show.year = date;						
 				}
-	
-			}
-			catch (ParseException e) 
-			{
+			} catch (IllegalArgumentException e) {
 				this.show.date=null;
 				log(e);
 			}
@@ -1902,8 +1969,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		} else if (aQName.equals("value")) {
 			this.value = this.text.toString();
 		} else if (aQName.equals("rating")) {
-			if(this.value!=null && this.value.toUpperCase().contains("TV"))
-			addRatingToShow();
+			if (this.value != null && this.value.trim().length() > 0) addRatingToShow();
 			this.ratingSystem = null;
 			this.value = null;
 		} else if (aQName.equals("star-rating")) {
@@ -1919,10 +1985,15 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 
 		}
 		this.text = null;
+		this.elementLanguage = null;
 		
-		} catch (Throwable t) {
+		} catch (Error error) {
+			throw error;
+		} catch (Exception t) {
 			log("aQName_Start: " + aQName_Start  + " aQName " + aQName);
 			log(t);
+			recordImportFailure("XML element " + aQName, t);
+			throw new SAXException("Unable to process XMLTV element " + aQName, t);
 		}
 	
     }
@@ -1972,6 +2043,9 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
                         // rating.
                         this.show.rating = ratings[0];
                     }
+					if (ratings[0].startsWith("TV")) {
+						this.show.parentalRating = ratings[0];
+					}
                 }
                 for (int i = 1; i < ratings.length; ++i) {
                     if (ADVISORY_CONTENT_STRINGS.contains(ratings[i])) {
@@ -2086,6 +2160,19 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
         }
     }
 
+	private boolean shouldUseLanguage(String existingLanguage, String incomingLanguage) {
+		if (this.init.PreferredLanguage.length() == 0) return true;
+		if (isPreferredLanguage(existingLanguage)) return false;
+		return existingLanguage == null || isPreferredLanguage(incomingLanguage);
+	}
+
+	private boolean isPreferredLanguage(String language) {
+		if (this.init.PreferredLanguage.length() == 0 || language == null) return false;
+		String preferred = this.init.PreferredLanguage.replace('_', '-');
+		String candidate = language.trim().toLowerCase(java.util.Locale.ROOT).replace('_', '-');
+		return candidate.equals(preferred) || candidate.startsWith(preferred + "-");
+	}
+
     /**
      * Adds a person to the show.
      * 
@@ -2140,10 +2227,9 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 				xmltvNumberTag=this.channel.xmltvNumberTag;
 			}	
 			
-			if (xmltvNumberTag!=null && this.init.ChannelNumberTagRegEx!=null)	
+			if (xmltvNumberTag != null && this.init.ChannelNumberTagPattern != null)
 			{
-				Pattern pattern = Pattern.compile(this.init.ChannelNumberTagRegEx);
-				Matcher matcher = pattern.matcher(xmltvNumberTag);
+				Matcher matcher = this.init.ChannelNumberTagPattern.matcher(xmltvNumberTag);
 				if (matcher.find())
 				{
 					//Found RegEx Group 0
@@ -2191,13 +2277,13 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		//<key> channel number or channel.xmltvId
 		Channel InitChannel;
 		//Check if xmltvId is the Channel Key for the channel Map
-		InitChannel = (Channel) this.init.channels.get(this.channel.xmltvId);
+		InitChannel = this.init.channels.get(this.channel.xmltvId);
 		
 		//Check if the any of the numbers is Channel Key for the channel Map 
-		Iterator itrNumbers = this.channel.numbers.iterator(); 
+		Iterator<String> itrNumbers = this.channel.numbers.iterator();
 		while(InitChannel==null && itrNumbers.hasNext())
 		{
-			InitChannel=(Channel) this.init.channels.get(itrNumbers.next());
+			InitChannel=this.init.channels.get(itrNumbers.next());
 		}
 
 		// Override the (names, network, numbers) from .propties file if InitChannel was found
@@ -2252,10 +2338,9 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		if (this.init.ChannelShortNameIndex>0 && this.channel.xmltvDisplayNames.size()>=this.init.ChannelShortNameIndex)
 			ShortName=this.channel.xmltvDisplayNames.get(this.init.ChannelShortNameIndex-1).toString();
 		//User option to use fiter ShortNameRegex from .properties file
-		if (ShortName!=null && this.init.ChannelShortNameRegEx!=null)
+		if (ShortName != null && this.init.ChannelShortNamePattern != null)
 		{
-			Pattern pattern = Pattern.compile(this.init.ChannelShortNameRegEx);
-			Matcher matcher = pattern.matcher(ShortName);
+			Matcher matcher = this.init.ChannelShortNamePattern.matcher(ShortName);
 			if (matcher.find())
 			{
 				//Found RegEx Group 0
@@ -2285,63 +2370,26 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		LongName=LongName.replaceAll(RegExInvalidChars, "-");
         ShortName=ShortName.replaceAll(RegExInvalidChars, "-");			
 				
-		int iProviderId;
-		if(this.initProviderId==null)
-			iProviderId=999;
-		else
-			iProviderId=Integer.parseInt(this.initProviderId); 
-
-		if(iProviderId>999)
-		{
-			log("Provider Id:"+ this.initProviderId + ">999 or not set: Default 999 will be used.  This might cause channel ID Collision. Consider setting provider.id=1 to 999.");
-			iProviderId=999;
+		if (ChannelMapper.providerScope(this.initProviderId) == 999
+				&& this.initProviderId != null && !"999".equals(this.initProviderId)) {
+			log("Provider ID is outside the station-ID scope 1-999; scope 999 will be used.");
 		}
-		
-		
-		if(this.channel.numbers.isEmpty())
-		{
-			/*
-				2147483647 Max Number
-				1********* Fixed at 1 
-				*999****** Upper Part is Listing ProviderID 1-998 999 used if none provided (* 1000000)
-				****065535 Max CRC16_CCITT Number
-				     
-			*/  
-			log("XMLTV_ID: " + this.channel.xmltvId + " No Channel Numbers Provided will use CRC16_CCITT of xmltvID This might cause channel ID Collision. Consider setting xmltv.channel.NumberTag");
-			StationID=(iProviderId * 1000000) + (CRC16_CCITT(this.channel.xmltvId.getBytes())+1000000000);
+		if (this.channel.numbers.isEmpty()) {
+			log("XMLTV_ID: " + this.channel.xmltvId
+					+ " has no channel number; using CRC16 for its station ID.");
 		}
-		else
-		{
-			/*
-				2147483647 Max Number
-				1********* Fixed at 1 
-				*999****** Upper Part is Listing ProviderID 1-998 999 used if none provided (* 1000000)
-				****999999 Max XMLTV Number with Decimal 9999.99 When Decimal (* 100 +1000000000)
-				     
-			*/  
-			Double dChNum=Double.parseDouble(this.channel.numbers.stream().findFirst().get().toString())*100;
-			StationID=(iProviderId * 1000000) + (dChNum.intValue()+1000000000);
+		StationID = ChannelMapper.stationId(this.initProviderId,
+				this.channel.xmltvId, this.channel.numbers);
+		String stationOwner = this.stationIdOwners.put(Integer.valueOf(StationID),
+				this.channel.xmltvId);
+		if (stationOwner != null && !stationOwner.equals(this.channel.xmltvId)) {
+			throw new IllegalStateException("station ID collision " + StationID + " between "
+					+ stationOwner + " and " + this.channel.xmltvId);
 		}
 		this.channel.STVstationID=StationID;
 				
-		// iterating numbers to add SagetvChannelNumberOffset and SagetvChannelNumberSeparator
-		LinkedHashSet<String> numbers = new LinkedHashSet<String>();
-		String number="";
-        for (String itr : this.channel.numbers) {
-			itr.replaceAll("-", ".");
-			if(itr.indexOf(".")>=0)
-			{
-				String[] arrOfStr=itr.toString().split("\\.");
-				arrOfStr[0]=Integer.toString(Integer.parseInt(arrOfStr[0])+this.init.SagetvChannelNumberOffset);	
-				number=arrOfStr[0] + "." + arrOfStr[1];
-			}
-			else
-			{
-				number=Integer.toString(Integer.parseInt(itr)+this.init.SagetvChannelNumberOffset);
-			}
-			numbers.add(number.replaceAll("\\.", this.init.SagetvChannelNumberSeparator));
-        }
-		this.channel.numbers=numbers;
+		this.channel.numbers = ChannelMapper.normalizeNumbers(this.channel.numbers,
+				this.init.SagetvChannelNumberOffset, this.init.SagetvChannelNumberSeparator);
 		
 		if(xLogChannel)
 			log(
@@ -2363,7 +2411,9 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 
 		  public boolean addChannelPublic(String name, String longName, String network, int stationID);
 		 */
-		this.guide.addChannelPublic(ShortName, LongName, Network, StationID);
+		if (!this.guideWriter.addChannel(ShortName, LongName, Network, StationID)) {
+			throw new IllegalStateException("SageTV rejected channel " + this.channel.xmltvId);
+		}
 		
 		
 		if (this.channel.xmltvIcon != null && this.init.SagetvChannelIconDownload
@@ -2377,17 +2427,13 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		//Put the channel in XMLTV Map with the key being xmltvId String
 		//This is used later for SageTV fuction aGuide.setLineup located in updateGuide function
 		this.channels.put(this.channel.xmltvId, this.channel);	
-		// Reset element in object that are no longer needed and prevents use of it out of context.
-        // (also prevents a minor memory leak).
-		this.channel.xmltvIcon=null;
-		this.channel.xmltvNumberTag=null;
-		this.channel.xmltvDisplayNames=null;
-		this.channel.network = null;
-		
 
 			
-        } catch (Throwable t) {
-            log(t);
+        } catch (Error error) {
+			throw error;
+		} catch (Exception exception) {
+			recordImportFailure("channel " + (this.channel == null ? "unknown" : this.channel.xmltvId), exception);
+            log(exception);
         }
     }
 
@@ -2396,13 +2442,13 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * Adds the current show.
      */
     private final void addShowToGuide() {
-        if (this.channel != null
+        if (this.channel != null && this.show != null && this.show.start != null
                 && this.show.start.getTime() > (currentTimeMillis()-(8*3600000))
                 && this.show.end != null
                 && this.show.start.before(this.show.end)) {//Add show if it is upto 8 hours previous
             
             try {
-                LinkedList categories =translateCategories(this.show.categories);
+                LinkedList<String> categories = translateCategories(this.show.categories);
                 if (!this.init.categoriesForStarRating.isEmpty()
                         && this.show.stars >= 0) {
                     // Prevent duplication of categories.
@@ -2549,7 +2595,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
                 }
                 if (!this.show.countries.isEmpty()) {
                     StringBuffer sb = new StringBuffer();
-                    Iterator it = this.show.countries.iterator();
+                    Iterator<String> it = this.show.countries.iterator();
                     if (it.hasNext()) {
                         sb.append(it.next());
                         while (it.hasNext()) {
@@ -2594,10 +2640,9 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 				
 				long originalAirDate=0;
 				if(this.show.date != null)originalAirDate=this.show.date.getTime();	
-				Integer season=this.show.season;
-				Integer episode=this.show.episode;
+				ProgrammeMapper.AiringFields airingFields = ProgrammeMapper.map(this.show);
 			
-				String parentalRating=null; 
+				String parentalRating=this.show.parentalRating;
 				/*  
 				   * Call this to add a Show to the database. If a show with this extID is already present, it will be updated
 				   * to this information. You can use null or String[0] for any fields you don't want to specify.
@@ -2627,10 +2672,10 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 					  String year, String parentalRating, String[] bonus, String extID, String language, long originalAirDate,
 					  short seasonNum, short episodeNum, boolean forcedUnique);  
 				*/
-				if(!this.guide.addShowPublic2(title, episodeName, desc, duration, toStringArray(categories),
+				if(!this.guideWriter.addShow(title, episodeName, desc, duration, toStringArray(categories),
 				  toStringArray(this.show.people), this.show.roles.toByteArray(), this.show.rating, toStringArray(this.show.expandedRatings),
 				  this.show.year, parentalRating, toStringArray(bonus), showId, this.show.language, originalAirDate,
-				  season.shortValue(), episode.shortValue(), false))
+				  airingFields.season, airingFields.episode))
 				  {
 						throw new RuntimeException("Add show failed.");
 				  }
@@ -2659,21 +2704,22 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 					*/
 					
 					
-					try
-					{
-						Integer seriesID = showIdentity.getSeriesId();
-						if (seriesID == null) throw new NumberFormatException("show ID has no numeric series mapping");
-						
+					Integer seriesID = showIdentity.getSeriesId();
+					if (seriesID != null) {
+					try {
 						//`.properties` option 'sagetv.show.Icon'	
 						String XMLTVicon="";
 						if(this.init.SagetvShowIcon)XMLTVicon=this.show.xmltvIcon;
 						
-						this.guide.addSeriesInfoPublic(seriesID.intValue(), title,"","","","","","","",XMLTVicon,toStringArray(this.show.people),toStringArray(this.show.characters));
+						if (!this.guideWriter.addSeries(seriesID.intValue(), title, XMLTVicon,
+								toStringArray(this.show.people), toStringArray(this.show.characters))) {
+							throw new IllegalStateException("SageTV rejected SeriesInfo " + seriesID);
+						}
 						
+					} catch (Exception exception) {
+						recordImportFailure("SeriesInfo " + seriesID, exception);
+						log(exception);
 					}
-					catch(Throwable t)
-					{
-						
 					}
 					
 
@@ -2725,63 +2771,8 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 				}
 												
 				*/	
-				byte multipart=0;
-				multipart=(byte) ((this.show.part << 4) | this.show.parts);
-				
-				
-				
-				int misc=0;
-				if(this.show.is_live)											misc |= this.guide.LIVE_MASK;
-				if(this.show.is_new)											misc |= this.guide.NEW_MASK;
-				
-				if(this.show.audio != null)
-				{
-					if(this.show.audio.toLowerCase().contains("stereo"))			misc |= this.guide.STEREO_MASK;
-					if(this.show.audio.toLowerCase().contains("sap")) 				misc |= this.guide.SAP_MASK;
-					if(this.show.audio.toLowerCase().contains("dd 5.1")) 	
-																					misc |= this.guide.DD51_MASK;
-					else
-					{
-						if(this.show.audio.toLowerCase().contains("dd"))			misc |= this.guide.DOLBY_MASK;
-						if(this.show.audio.toLowerCase().contains("dolby digital"))	misc |= this.guide.DOLBY_MASK;
-					}
-					if(this.show.audio.toLowerCase().contains("dubbed")) 			misc |= this.guide.DUBBED_MASK;
-					if(this.show.audio.toLowerCase().contains("surround")) 			misc |= this.guide.SURROUND_MASK;
-					if(this.show.audio.toLowerCase().contains("subtitled")) 		misc |= this.guide.SUBTITLE_MASK;
-					if(this.show.audio.toLowerCase().contains("cc")) 				misc |= this.guide.CC_MASK;
-					if(this.show.audio.toLowerCase().contains("tape")) 				misc |= this.guide.TAPE_MASK;
-				}
-				
-				if(this.show.quality != null)
-				{
-					if(this.show.quality.toLowerCase().contains("hdtv")) 			misc |= this.guide.HDTV_MASK;
-					if(this.show.quality.toLowerCase().contains("3d")) 				misc |= this.guide.THREED_MASK;
-					if(this.show.quality.toLowerCase().contains("letterbox"))		misc |= this.guide.LETTERBOX_MASK;
-					if(this.show.quality.toLowerCase().contains("ws"))				misc |= this.guide.WIDESCREEN_MASK;
-				}
-				
-				if(this.show.is_premiere)
-				{
-					misc |= this.guide.PREMIERE_MASK;
-					if(this.show.premiere != null)
-					{
-						if(this.show.premiere.toLowerCase().contains("channel"))		misc |= this.guide.CHANNEL_PREMIERE_MASK;
-						
-						if(this.show.premiere.toLowerCase().contains("finale"))
-						{
-							if(this.show.premiere.toLowerCase().contains("season"))	misc |= this.guide.SEASON_FINALE_MASK;
-							if(this.show.premiere.toLowerCase().contains("series"))	misc |= this.guide.SERIES_FINALE_MASK;
-						}
-						else
-						{					
-							if(this.show.premiere.toLowerCase().contains("season"))	misc |= this.guide.SEASON_PREMIERE_MASK;
-							if(this.show.premiere.toLowerCase().contains("series"))	misc |= this.guide.SERIES_PREMIERE_MASK;
-						}	
-					}
-				}				
-								
-				parentalRating=this.show.parentalRating;
-				if (this.guide.addAiringPublic2(showId, stationId, start, duration, multipart, misc, parentalRating)) 
+				if (this.guideWriter.addAiring(showId, stationId, start, duration,
+						airingFields.multipart, airingFields.miscellaneous, parentalRating))
 				{
 					if(xLogShow)log(
 						String.format( "SID: %1$12s " , showId) + 
@@ -2796,14 +2787,21 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 					throw new RuntimeException("Add airing failed.");
 				}	
 
-            } catch (Throwable t) {
-                log(t);
+            } catch (Error error) {
+				throw error;
+			} catch (Exception exception) {
+				recordImportFailure("programme " + (this.show == null ? "unknown" : this.show.title), exception);
+				log(exception);
             }
         }
 		else
 			if(xLogShow)log("Show Older than 8 hours: " + this.show.toString());
 			
     }
+
+	private void recordImportFailure(String phase, Throwable failure) {
+		if (this.importResult != null) this.importResult.fail(phase, failure);
+	}
 
     /**
      * Routine to examine if a configuration item is activated.
@@ -2812,11 +2810,11 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * @param aActivatedBy the list of properties that activates the configuration item.
      * @return <code>true</code> if the configuration item is activated.
      */
-    static final boolean isActivated(List aList, List aActivatedBy) {
+    static final boolean isActivated(List<?> aList, List<?> aActivatedBy) {
         if (aActivatedBy.contains("*")) {
             return true;
         }
-        for (Iterator it = aActivatedBy.iterator(); it.hasNext();) {
+        for (Iterator<?> it = aActivatedBy.iterator(); it.hasNext();) {
             if (aList.contains(it.next())) {
                 return true;
             }
@@ -2831,7 +2829,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * @param aActivatedBy the list of properties that activates the configuration item.
      * @return <code>true</code> if the configuration item is activated.
      */
-    static final boolean isActivated(Object aItem, List aActivatedBy) {
+    static final boolean isActivated(Object aItem, List<?> aActivatedBy) {
         return aActivatedBy.contains(aItem.toString())
                 || aActivatedBy.contains("*");
     }
@@ -2842,8 +2840,8 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * @param aCollection the collection that should be converted.
      * @return the string array.
      */
-    private static final String[] toStringArray(Collection aCollection) {
-        return (String[]) aCollection.toArray(DUMMY_STRING_ARRAY);
+    private static final String[] toStringArray(Collection<String> aCollection) {
+        return aCollection.toArray(DUMMY_STRING_ARRAY);
     }
 
     /**
@@ -2890,21 +2888,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * @return the parsed date.
      */
     private static final Date parseXmltvDate(String aXmltvDate) {
-        if (aXmltvDate != null) {
-            try {
-                switch (aXmltvDate.indexOf(" ")) {
-                case 12:
-                    return DF_MINUTES.parse(aXmltvDate);
-                case 14:
-                    return DF_SECONDS.parse(aXmltvDate);
-                }
-                throw new ParseException("Unknown date format: " + aXmltvDate,
-                        0);
-            } catch (ParseException e) {
-                log(e);
-            }
-        }
-        return null;
+		return XmltvDateParser.parseTimestamp(aXmltvDate);
     }
 
     public final void startPrefixMapping(String aPrefix, String aUri)
@@ -2919,11 +2903,13 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 
     public final void error(SAXParseException aException) throws SAXException {
         log(aException);
+		throw aException;
     }
 
     public final void fatalError(SAXParseException aException)
             throws SAXException {
         log(aException);
+		throw aException;
     }
 
     public final void warning(SAXParseException aException) throws SAXException {
@@ -2936,23 +2922,23 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * @param aCategories the categories that should be translated.
      * @return the translated categories.
      */
-    public final LinkedList translateCategories(Set aCategories) {
-        LinkedList translatedCategories = new LinkedList();
+    public final LinkedList<String> translateCategories(Set<String> aCategories) {
+        LinkedList<String> translatedCategories = new LinkedList<String>();
         if (!aCategories.isEmpty()) {
-            LinkedList notYetTranslated = new LinkedList();
+            LinkedList<String> notYetTranslated = new LinkedList<String>();
             notYetTranslated.addAll(aCategories);
 
             // Process the largest number of categories first.
             translation: while (notYetTranslated.size() > 0) {
                 for (int length = Math.min(this.init.maxCategoryTranslationLength,
                         notYetTranslated.size()); length > 0; --length) {
-                    List subList = notYetTranslated.subList(0, length);
-                    List translations = (List) this.init.categoryTranslations
+                    List<String> subList = notYetTranslated.subList(0, length);
+                    List<String> translations = this.init.categoryTranslations
                             .get(subList);
                     if (translations != null) {
-                        for (Iterator it = translations.iterator(); it
+                        for (Iterator<String> it = translations.iterator(); it
                                 .hasNext();) {
-                            String category = (String) it.next();
+                            String category = it.next();
                             if (!translatedCategories.contains(category)) {
                                 translatedCategories.add(category);
                             }
@@ -2961,7 +2947,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
                         continue translation;
                     }
                 }
-                String category = (String) notYetTranslated.removeFirst();
+                String category = notYetTranslated.removeFirst();
                 if (!translatedCategories.contains(category)) {
                     translatedCategories.add(category);
                 }
@@ -2973,7 +2959,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
                     logDebug(logText);
 					log(logText);
                     // Only report each category once.
-                    List list = new LinkedList();
+                    List<String> list = new LinkedList<String>();
                     list.add(category);
                     this.init.categoryTranslations.put(list, list);
                 }
@@ -2989,7 +2975,7 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * @param aCategory the category.
      * @return true if the category is first in the list.
      */
-    private static final boolean makeFirst(LinkedList aList, String aCategory) {
+    private static final boolean makeFirst(LinkedList<String> aList, String aCategory) {
         if (aList.contains(aCategory)) {
             if (aList.indexOf(aCategory) > 0) {
                 aList.remove(aCategory);
@@ -3002,28 +2988,14 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 	
 public static int CRC16_CCITT(byte[] buffer)
 {
-	int wCRCin = 0x0000; 
-	int wCPoly = 0x1021; 
-	for (byte b : buffer) {
-	 for (int i = 0; i < 8; i++) {
-		 boolean bit = ((b >> (7 - i) & 1) == 1);
-		 boolean c15 = ((wCRCin >> 15 & 1) == 1);
-		 wCRCin <<= 1;
-		 if (c15 ^ bit)
-			 wCRCin ^= wCPoly;
-	 }
-	}
-	wCRCin &= 0xffff;
-	return wCRCin;
+	return ChannelMapper.crc16(buffer);
 }
 
 public static void copyFileContentAppend(File a, File b)
 	throws Exception
 {
-	FileInputStream in = new FileInputStream(a);
-	FileOutputStream out = new FileOutputStream(b,true);
-
-	try {
+	try (FileInputStream in = new FileInputStream(a);
+		 FileOutputStream out = new FileOutputStream(b, true)) {
 		int n;
 		// read() function to read the
 		// byte of data
@@ -3031,19 +3003,6 @@ public static void copyFileContentAppend(File a, File b)
 			// write() function to write
 			// the byte of data
 			out.write(n);
-		}
-	}
-	finally {
-		if (in != null) {
-
-			// close() function to close the
-			// stream
-			in.close();
-		}
-		// close() function to close
-		// the stream
-		if (out != null) {
-			out.close();
 		}
 	}
 }

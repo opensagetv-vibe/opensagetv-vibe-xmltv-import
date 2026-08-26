@@ -17,6 +17,7 @@ public final class ImporterHarness {
     final Set<String> conflicts = new HashSet<>();
     final Set<String> showIds = new TreeSet<>();
     final long[] displayed = new long[2];
+    final int[] lineupStations = new int[]{-1};
     EPGDBPublic2 db = (EPGDBPublic2) Proxy.newProxyInstance(
         ImporterHarness.class.getClassLoader(), new Class<?>[]{EPGDBPublic2.class}, (p,m,a) -> {
           calls.put(m.getName(), calls.getOrDefault(m.getName(), 0L) + 1);
@@ -32,6 +33,8 @@ public final class ImporterHarness {
             if (a[11] instanceof String[]) {
               for (String bonus : (String[])a[11]) if (marker.equals(bonus)) displayed[1]++;
             }
+          } else if ("setLineup".equals(m.getName()) && a[1] instanceof Map) {
+            lineupStations[0]=((Map<?,?>)a[1]).size();
           }
           Class<?> r=m.getReturnType();
           if (r==boolean.class) return true;
@@ -45,7 +48,8 @@ public final class ImporterHarness {
     long channels=calls.getOrDefault("addChannelPublic",0L);
     long shows=calls.getOrDefault("addShowPublic2",0L)+calls.getOrDefault("addShowPublic",0L);
     long airings=calls.getOrDefault("addAiringPublic2",0L)+calls.getOrDefault("addAiringPublic",0L);
-    System.out.printf("result=%s channels=%d shows=%d uniqueShowIds=%d conflictingShowIds=%d airings=%d showIdDescriptions=%d showIdBonus=%d ids=%s calls=%s file=%s%n",ok,channels,shows,identities.size(),conflicts.size(),airings,displayed[0],displayed[1],showIds,calls,new File(args[0]).getName());
+    Object displayedIds=showIds.size() <= 20 ? showIds : "[" + showIds.size() + " IDs]";
+    System.out.printf("result=%s channels=%d shows=%d uniqueShowIds=%d conflictingShowIds=%d airings=%d showIdDescriptions=%d showIdBonus=%d ids=%s calls=%s file=%s lineupStations=%d%n",ok,channels,shows,identities.size(),conflicts.size(),airings,displayed[0],displayed[1],displayedIds,calls,new File(args[0]).getName(),lineupStations[0]);
     if (!ok || channels==0) System.exit(2);
     if (shows != airings) System.exit(3);
   }

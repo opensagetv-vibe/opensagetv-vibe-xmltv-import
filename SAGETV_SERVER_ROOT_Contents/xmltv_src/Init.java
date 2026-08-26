@@ -25,6 +25,7 @@ import java.util.List;
 import java.text.MessageFormat;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.regex.Pattern;
 
 /**
  * Init data from .propties file
@@ -44,11 +45,11 @@ public final class Init {
      * The default is:
      *	 channel.ids=
      */
-    List channelIds;
+    List<String> channelIds;
 	
 	
 	//All parsed channels. from .properties file
-    HashMap channels= new HashMap();
+    HashMap<String, Channel> channels = new HashMap<String, Channel>();
 
      /**
      ChannelShortNameIndex
@@ -63,6 +64,7 @@ public final class Init {
 	 default=.* with no entry .properties file will find anything
      */
     String ChannelShortNameRegEx;
+	Pattern ChannelShortNamePattern;
 	
 	/**
      ChannelLongNameIndex
@@ -109,6 +111,7 @@ public final class Init {
 	 default=.* with no entry .properties file will find anything
      */
     String ChannelNumberTagRegEx;
+	Pattern ChannelNumberTagPattern;
 	
 	/**
      ProgrammeEpisodeNumSystemShowID_Value	
@@ -119,6 +122,10 @@ public final class Init {
 
 	/** Optional location where the generated Show ID is exposed in SageTV. */
 	String ShowIdDisplay;
+
+	/** Maximum accumulated text for one XML element. */
+	int XmltvMaxElementChars;
+	String PreferredLanguage;
 	
 	/**
      sagetv.ShowIcon
@@ -164,7 +171,7 @@ public final class Init {
     /**
      * @see #initcapTitle
      */
-    List capChannelIds;
+    List<String> capChannelIds;
 
     /**
      * Flag to indicate that all channel ids should be initcapped.
@@ -174,7 +181,7 @@ public final class Init {
     /**
      * @see #initcapTitle
      */
-    List capSkipWords;
+    List<String> capSkipWords;
 
     /**
      * The year of the show is added to the title between braces. This should
@@ -190,7 +197,7 @@ public final class Init {
 	 /**
      * @see #titleAddYear
      */
-    List titleAddYearCategories;
+    List<String> titleAddYearCategories;
 	
 	    /**
      * The HD title decoration.
@@ -200,7 +207,7 @@ public final class Init {
     /**
      * The channels for which the titles can be HD decorated.
      */
-    List hdTitleDecorationChannels;
+    List<String> hdTitleDecorationChannels;
 	
 	 /**
      * The sage role for a director.
@@ -245,7 +252,7 @@ public final class Init {
     /**
      * The category translations.
      */
-    Map categoryTranslations;
+    Map<List<String>, List<String>> categoryTranslations;
 
     /**
      * The maximum number of category combinations that are present in the rules.
@@ -271,26 +278,26 @@ public final class Init {
     /**
      * The categories for which init.rerunAfterDate should be applied.
      */
-    List rerunAfterDateCategories;
+    List<String> rerunAfterDateCategories;
 
     /**
      * The categories for which a rerun is assumed if there is no episode 
      * information.
      */
-    List rerunNoEpisodeCategories;
+    List<String> rerunNoEpisodeCategories;
 
     /**
      * The categories for which a rerun is assumed if there is no date 
      * information.
      */
-    List rerunNoDateCategories;
+    List<String> rerunNoDateCategories;
 
     /**
      * The categories are not always enough to determine if something is a movie.
      * This option allows you to add a category (or categories) if a star-rating 
      * exists. 
      */
-    List categoriesForStarRating;
+    List<String> categoriesForStarRating;
 
     /**
      * The date year decoration.
@@ -307,7 +314,7 @@ public final class Init {
     /**
      * The categories for which the titles can be date decorated.
      */
-    List dateTitleDecorationCategories;
+    List<String> dateTitleDecorationCategories;
 	
 	    /**
      * The episode number is prepended to the episode name. The part number of
