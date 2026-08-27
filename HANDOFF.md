@@ -2,11 +2,12 @@
 
 ## Build and artifact
 
-Run `opensagetv-dev.sh xmltv` from the sibling `opensagetv-build-env`
+Run `opensagetv-vibe-dev.sh xmltv` from the sibling
+`opensagetv-vibe-build-env`
 repository. On Windows run:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\opensagetv-dev.ps1 xmltv
+powershell -NoProfile -ExecutionPolicy Bypass -File .\opensagetv-vibe-dev.ps1 xmltv
 ```
 
 The unified Ubuntu 26/OpenJDK 11 environment consumes the locally built Core
@@ -89,12 +90,12 @@ Private corpus files are not retained. Their earlier results are documented in
 
 ## Unraid commissioning result
 
-Version 3.5 was commissioned on 2026-08-26 in
-`OpenSageTV-sagetv-server-u26-gpu-j11` using the profile-backed FTA_60177
-configuration. The real feed declared `xmltv.dtd`, used offset-free timestamps,
-and contained duplicate displayed channel numbers. Those findings produced the
-DTD containment, local-time parsing, and deterministic station-ID fallback
-fixes in this release.
+Version 3.5 was commissioned on 2026-08-26 in the clean development server
+instance, whose current template identity is `opensagetv-vibe-server`, using
+the profile-backed FTA_60177 configuration. The real feed declared `xmltv.dtd`,
+used offset-free timestamps, and contained duplicate displayed channel
+numbers. Those findings produced the DTD containment, local-time parsing, and
+deterministic station-ID fallback fixes in this release.
 
 The final forced import reported `success=true`, `configurations=1/1`,
 `feeds=1/1`, and `failures=0`. It imported all 107 source channels as 107
@@ -106,6 +107,6 @@ the live JAR directory and the current container's embedded startup asset.
 The pre-commissioning rollback copy remains at
 `server/.backups/xmltv-profile-20260826-132101`. No feed or appdata content is
 stored in this repository. The current container was patched without a full
-image rebuild as requested; rebuilding `opensagetv-container` from commit
+image rebuild as requested; rebuilding `opensagetv-vibe-container` from commit
 `052b6ff` or later is required before deleting/recreating that container from
 an older image tag.

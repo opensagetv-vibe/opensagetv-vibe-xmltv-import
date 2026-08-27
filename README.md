@@ -1,12 +1,13 @@
-# OpenSageTV XMLTV Import Plugin
+# OpenSageTV Vibe XMLTV Import Plugin
 
 This Apache-2.0 project builds reproducibly against SageTV Core using the common
 Ubuntu 26/OpenJDK 11 development image. It does not compile inside or delete
 data from a running SageTV server.
 
-Run `./opensagetv-dev.sh xmltv` from the sibling `opensagetv-build-env`
+Run `./opensagetv-vibe-dev.sh xmltv` from the sibling
+`opensagetv-vibe-build-env`
 repository. On Windows use `powershell -NoProfile -ExecutionPolicy Bypass -File
-.\opensagetv-dev.ps1 xmltv`. Output is under `output/`.
+.\opensagetv-vibe-dev.ps1 xmltv`. Output is under `output/`.
 
 Version 3.5 treats import completion truthfully: an unavailable or malformed
 feed, rejected SageTV database call, failed required `run.before` command, or
@@ -30,7 +31,7 @@ are available under `.config/xmltv-examples`.
 
 ## Supported Unraid container installation
 
-The `opensagetv-container` release embeds the tested JAR, copies it into
+The `opensagetv-vibe-container` release embeds the tested JAR, copies it into
 `server/JARs`, and safely upserts the plugin property at startup. Do not edit
 `Sage.properties` with the obsolete `sed`/`sudo` commands from the historical
 project. The CA template's `XMLTV EPG Provider` value must remain

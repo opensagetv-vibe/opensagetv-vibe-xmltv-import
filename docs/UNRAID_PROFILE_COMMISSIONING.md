@@ -2,8 +2,8 @@
 
 ## Commissioned layout
 
-The 2026-08-26 commissioning used the clean development instance
-`OpenSageTV-sagetv-server-u26-gpu-j11`. Profiles are ordinary files in the
+The 2026-08-26 commissioning used the clean development instance now named
+`opensagetv-vibe-server`. Profiles are ordinary files in the
 SageTV server root; no private XMLTV feed or other appdata is committed.
 
 The active provider file contains only instance values and an explicit profile
@@ -41,7 +41,7 @@ Check the provider log after a forced guide update:
 
 ```bash
 grep -E 'Import summary|Import failure|Station ID collision' \
-  /mnt/user/appdata/sagetv-server-26-gpu-j11/server/xmltv_FTA_60177.log | tail -n 20
+  /mnt/user/appdata/opensagetv-vibe-server/server/xmltv_FTA_60177.log | tail -n 20
 ```
 
 A valid pass ends with exactly one successful summary and zero failures. Old
@@ -54,7 +54,7 @@ the mere existence of any historical error.
 The untouched pre-commissioning files are stored under:
 
 ```text
-/mnt/user/appdata/sagetv-server-26-gpu-j11/server/.backups/xmltv-profile-20260826-132101
+/mnt/user/appdata/opensagetv-vibe-server/server/.backups/xmltv-profile-20260826-132101
 ```
 
 That directory contains `Sage.properties`, `XMLTVImportPlugin.jar`,
@@ -66,4 +66,4 @@ current container; otherwise its startup copy will reinstall version 3.5.
 This deployment intentionally patched the current container instead of
 rebuilding the complete image. A normal restart is verified, but deleting and
 recreating from the older image tag discards its writable-layer embedded JAR.
-Build the updated `opensagetv-container` source for recreation-safe deployment.
+Build the updated `opensagetv-vibe-container` source for recreation-safe deployment.
