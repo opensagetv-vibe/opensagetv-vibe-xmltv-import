@@ -91,7 +91,7 @@ Private corpus files are not retained. Their earlier results are documented in
 ## Unraid commissioning result
 
 Version 3.5 was commissioned on 2026-08-26 in the clean development server
-instance, whose current template identity is `opensagetv-vibe-server`, using
+instance, whose current template identity is `sagetv-vibe-server-u26-gpu-j11`, using
 the profile-backed FTA_60177 configuration. The real feed declared `xmltv.dtd`,
 used offset-free timestamps, and contained duplicate displayed channel
 numbers. Those findings produced the DTD containment, local-time parsing, and

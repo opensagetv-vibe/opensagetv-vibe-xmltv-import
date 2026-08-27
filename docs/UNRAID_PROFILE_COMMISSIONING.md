@@ -3,7 +3,7 @@
 ## Commissioned layout
 
 The 2026-08-26 commissioning used the clean development instance now named
-`opensagetv-vibe-server`. Profiles are ordinary files in the
+`sagetv-vibe-server-u26-gpu-j11`. Profiles are ordinary files in the
 SageTV server root; no private XMLTV feed or other appdata is committed.
 
 The active provider file contains only instance values and an explicit profile
@@ -41,7 +41,7 @@ Check the provider log after a forced guide update:
 
 ```bash
 grep -E 'Import summary|Import failure|Station ID collision' \
-  /mnt/user/appdata/opensagetv-vibe-server/server/xmltv_FTA_60177.log | tail -n 20
+  /mnt/user/appdata/sagetv-vibe-server-u26-gpu-j11/server/xmltv_FTA_60177.log | tail -n 20
 ```
 
 A valid pass ends with exactly one successful summary and zero failures. Old
@@ -54,7 +54,7 @@ the mere existence of any historical error.
 The untouched pre-commissioning files are stored under:
 
 ```text
-/mnt/user/appdata/opensagetv-vibe-server/server/.backups/xmltv-profile-20260826-132101
+/mnt/user/appdata/sagetv-vibe-server-u26-gpu-j11/server/.backups/xmltv-profile-20260826-132101
 ```
 
 That directory contains `Sage.properties`, `XMLTVImportPlugin.jar`,

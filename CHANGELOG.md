@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Updated Unraid commissioning references for the canonical
+  `sagetv-vibe-server-u26-gpu-j11` container and appdata path.
 - Renamed the project and its unified build and runtime-container references to
   the full `opensagetv-vibe-*` namespace; Java package and plugin class names
   remain unchanged for SageTV compatibility.
