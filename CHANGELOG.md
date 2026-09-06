@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Replaced private commissioning examples with generic OTA/IPTV profiles and
+  synthetic paths before public release; no feed, credentials, schedules,
+  logs, or appdata are distributed.
+- Added repository checks, third-party notices, and contribution/security
+  guidance for public development.
+- Added the common AI takeover, task, verified update, resumable unified gate,
+  and changed-files handoff ZIP workflow without altering importer behavior.
 - Updated Unraid commissioning references for the canonical
   `sagetv-vibe-server-u26-gpu-j11` container and appdata path.
 - Renamed the project and its unified build and runtime-container references to
@@ -17,7 +24,7 @@
   existing override, and persist the generated selection without overwriting an
   existing profile.
 - Added Generic, EPG123, Zap2XML, Pluto, Threadfin, xTeVe, IPTV, OTA/FTA, and
-  commissioned FTA_60177 root profiles plus shared safe defaults.
+  generic OTA_Local root profile plus shared safe defaults.
 - Refactored shipped provider examples to select profiles rather than duplicate
   format settings, and added precedence/compatibility/auto-generation tests.
 - Changed the guide-update contract to return failure for acquisition, parser,
@@ -86,3 +93,85 @@
 - Added zap2xml `series`, `season`, and `episode` number-system support and a two-episode regression test.
 - Made fallback IDs charset-stable and fixed the one-actor movie bounds error.
 - Added a reusable corpus identity/field-coverage audit and documented collision policy.
+
+## 3.5 - 2026-08-26
+
+- Added root-level provider profiles, explicit provider-over-profile precedence,
+  atomic `xmltv.profile=auto` generation, and common/provider examples.
+- Added safe standard-DTD handling, strict offset-free timestamps, and
+  deterministic provider-scoped station-ID collision fallback.
+
+## 3.4 - 2026-08-26
+
+- Made required-stage failures abort lineup replacement; added bounded atomic
+  feed acquisition, secure parsing, typed components, strict dates, safe
+  command execution, Show-ID auditing, metadata fixes, and stress/hostile tests.
+
+## 3.3 - 2026-08-26
+
+- Extracted generated Show-ID logic, added opt-in provider-scoped SHA-256 IDs
+  and collision-safe persistent maps, and added optional SageTV ID display.
+- Removed the destructive legacy helper that stopped SageTV and deleted server
+  data during a build.
+
+## 3.2 - 2026-08-26
+
+- Restored `xmltv.channel.IconDownload`, added validated atomic PNG conversion
+  and bounded scaling, and contained invalid/oversized logo failures.
+
+## 3.0 - 2022-09-16
+
+- Added per-provider/debug logging, automatic discovery of provider property
+  files, stable local feed copies, people/character/rating/show-icon metadata,
+  custom ShowID/series-ID selection, and cached channel configuration.
+- Reworked channel creation for EPG123/external channel data and CRC fallback,
+  added airing bit masks and placeholder episode handling, and renamed legacy
+  channel-number/logo settings into the `sagetv.*` namespace.
+
+## 2.11 - 2022-11-13
+
+- Retained Java compatibility by using `String.isEmpty()` rather than
+  `String.isBlank()`.
+
+## 2.10 - 2022-11-13
+
+- Corrected programme-date handling to use the `previously-shown` date.
+
+## 2.09 - 2022-11-13
+
+- Used programme start time when no date is supplied and adopted
+  `addAiringPublic2` masks for live/new, audio, quality, premiere, and multipart
+  metadata.
+
+## 2.08 - 2022-01-28
+
+- Prevented channel-description crashes, retained a bounded amount of prior
+  guide data on initial import, improved Pluto/onscreen/common episode values,
+  centralized configuration, added channel offsets, and auto-discovered
+  provider property files.
+
+## 2.06 - 2022-01-18
+
+- Added logging controls, provider-aware station-ID calculation, and safe logo
+  filenames for channel names containing filesystem punctuation.
+
+## 2.04 - 2022-01-16
+
+- Added configurable short/long display-name selection, regex filtering,
+  channel-number tag/index selection, and opt-in channel logo downloads.
+
+## 2.03 - 2022-01-14
+
+- Removed deprecated boxed-integer construction and migrated SAX reader
+  creation to `SAXParserFactory`.
+
+## 2.02 - 2022-01-14
+
+- Fixed the first-channel marker, duplicate title years, TMS episode IDs,
+  onscreen/common SxEx behavior, and channel short-name selection; began logo
+  ingestion.
+
+## 2.0 - 2022-01-13
+
+- Derived displayed channel numbers from numeric channel IDs or display names,
+  including decimal subchannels.

@@ -1,4 +1,4 @@
-# FTA_60177/zap2xml channel layout commissioned on Unraid.
+# Example zap2xml/OTA channel layout. Copy and adjust for the provider feed.
 include=common.properties
 xmltv.channel.display-name.ShortNameIndex=1
 xmltv.channel.display-name.ShortNameRegex=(?<=\\s).*

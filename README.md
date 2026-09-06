@@ -9,6 +9,9 @@ Run `./opensagetv-vibe-dev.sh xmltv` from the sibling
 repository. On Windows use `powershell -NoProfile -ExecutionPolicy Bypass -File
 .\opensagetv-vibe-dev.ps1 xmltv`. Output is under `output/`.
 
+The consistent AI takeover/update interface is documented in
+[`WORKFLOW.md`](WORKFLOW.md); its root launchers work from any caller directory.
+
 Version 3.5 treats import completion truthfully: an unavailable or malformed
 feed, rejected SageTV database call, failed required `run.before` command, or
 incomplete configuration makes `updateGuide()` return `false`. The existing
@@ -174,7 +177,7 @@ built-in defaults -> include/common -> selected profile -> .xmltv.properties
 Consequently any setting in the existing provider file overrides the profile.
 Existing `include=` chains continue to work. Shipped profiles are `Generic`,
 `EPG123`, `Zap2XML`, `Pluto`, `Threadfin`, `xTeVe`, `IPTV`, `OTA_FTA`, and the
-commissioned `FTA_60177` mapping. Every profile and `common.properties` lives in
+generic `OTA_Local` mapping. Every profile and `common.properties` lives in
 the SageTV server root.
 
 To safely convert a working configuration into a provider-named profile:

@@ -1,0 +1,26 @@
+name: Repository checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate source layout and scripts
+        run: |
+          set -euo pipefail
+          find . -type f -name '*.sh' -not -path './.git/*' -print0 | xargs -0 bash -n
+          test -f LICENSE
+          test -f THIRD_PARTY_NOTICES.md
+          test -f SAGETV_SERVER_ROOT_Contents/xmltv_src/XMLTVImportPlugin.java
+          test -f SAGETV_SERVER_ROOT_Contents/xmltv_OTA_Local.profile
+          ! grep -R -n -E '192\.168\.|xmltv_60177|nyplayer_epgdata' \
+            --exclude-dir=.git --exclude-dir=artifacts --exclude-dir=output .

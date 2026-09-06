@@ -1,5 +1,11 @@
 # Handoff
 
+## Standard takeover
+
+Read `AGENTS.md`, `README.md`, `TASKS.md`, and `WORKFLOW.md`, then use the common
+root commands. Changed-files packages live in `artifacts/downloads`; the tested
+JAR is installed only by the container staging/release workflow.
+
 ## Build and artifact
 
 Run `opensagetv-vibe-dev.sh xmltv` from the sibling
@@ -90,23 +96,12 @@ Private corpus files are not retained. Their earlier results are documented in
 
 ## Unraid commissioning result
 
-Version 3.5 was commissioned on 2026-08-26 in the clean development server
-instance, whose current template identity is `sagetv-vibe-server-u26-gpu-j11`, using
-the profile-backed FTA_60177 configuration. The real feed declared `xmltv.dtd`,
-used offset-free timestamps, and contained duplicate displayed channel
-numbers. Those findings produced the DTD containment, local-time parsing, and
-deterministic station-ID fallback fixes in this release.
+Version 3.5 previously passed a private 107-channel commissioning run. The
+private provider name, paths, feed, logs, credentials, and appdata are not part
+of this repository. The compatibility cases learned from that run—standard DTD
+declarations, offset-free timestamps, and duplicate displayed channel
+numbers—are represented by committed synthetic regression fixtures.
 
-The final forced import reported `success=true`, `configurations=1/1`,
-`feeds=1/1`, and `failures=0`. It imported all 107 source channels as 107
-distinct SageTV station IDs and processed 29,922 programme records. A container
-restart returned healthy and retained the tested JAR at SHA-256
-`f41f405dbdaa50977aa23788ab13d656bccb364800189e663c7f2d16369af7fa` in both
-the live JAR directory and the current container's embedded startup asset.
-
-The pre-commissioning rollback copy remains at
-`server/.backups/xmltv-profile-20260826-132101`. No feed or appdata content is
-stored in this repository. The current container was patched without a full
-image rebuild as requested; rebuilding `opensagetv-vibe-container` from commit
-`052b6ff` or later is required before deleting/recreating that container from
-an older image tag.
+Use `docs/UNRAID_PROFILE_COMMISSIONING.md` for a clean deployment. Component
+updates and rollback are appdata-based and do not require rebuilding the
+container image.

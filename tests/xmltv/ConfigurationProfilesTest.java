@@ -154,7 +154,7 @@ public final class ConfigurationProfilesTest {
         assertTrue(new File(directory, "common.properties").isFile(),
                 "shipped common.properties missing");
         for (String name : Arrays.asList("Generic", "EPG123", "Zap2XML", "Pluto",
-                "Threadfin", "xTeVe", "IPTV", "OTA_FTA", "FTA_60177")) {
+                "Threadfin", "xTeVe", "IPTV", "OTA_FTA", "OTA_Local")) {
             File profile = ConfigurationProfiles.profileFile(directory, name);
             assertTrue(profile.isFile(), "shipped profile missing: " + profile);
             equals("common.properties", load(profile).getProperty("include"),
