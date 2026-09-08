@@ -16,7 +16,7 @@ javac -encoding UTF-8 -Xlint:deprecation -Xlint:unchecked --release 8 \
   "$src/XmltvParser.java" "$src/XmltvDateParser.java" \
   "$src/ExternalCommandRunner.java" "$src/ChannelMapper.java" \
   "$src/ProgrammeMapper.java" "$src/SageGuideWriter.java" \
-  "$src/ShowIdGenerator.java" "$src/ShowIdAudit.java" \
+  "$src/ShowIdGenerator.java" "$src/ShowIdAudit.java" "$src/TmdbEnricher.java" \
   "$src/XMLInputStreamFilter.java" \
   "$src/XMLTVImportPlugin.java" \
   2>&1 | tee "$out/test-results/javac.log"
@@ -30,7 +30,9 @@ javac -encoding UTF-8 --release 8 -classpath "$out/classes:$sage_jar" \
   "$root/tests/xmltv/MetadataMappingHarness.java" \
   "$root/tests/xmltv/ProviderReloadTest.java" \
   "$root/tests/xmltv/ConfigurationProfilesTest.java" \
-  "$root/tests/xmltv/ProfileRuntimeProbe.java"
+  "$root/tests/xmltv/ProfileRuntimeProbe.java" \
+  "$root/tests/org/opensagetv/vibe/tmdb/plugin/OpenSageTVVibeTmdbFacade.java" \
+  "$root/tests/xmltv/TmdbEnricherTest.java"
 java -classpath "$out/test-classes:$out/classes:$sage_jar" xmltv.XMLInputStreamFilterTest \
   | tee "$out/test-results/tests.log"
 provider_work="$(mktemp -d)"
@@ -48,6 +50,8 @@ java -classpath "$out/test-classes:$out/classes:$sage_jar" \
   xmltv.ConfigurationProfilesTest "$root/SAGETV_SERVER_ROOT_Contents" \
   | tee -a "$out/test-results/tests.log"
 java -classpath "$out/test-classes:$out/classes:$sage_jar" xmltv.ModernInfrastructureTest \
+  | tee -a "$out/test-results/tests.log"
+java -classpath "$out/test-classes:$out/classes:$sage_jar" xmltv.TmdbEnricherTest \
   | tee -a "$out/test-results/tests.log"
 reload_work="$(mktemp -d)"
 (cd "$reload_work"; java -classpath "$out/test-classes:$out/classes:$sage_jar" \
@@ -185,6 +189,29 @@ printf 'provider.name=Identity Test\nprovider.id=999\nxmltv.files=%s\nlog.config
   | tee "$out/test-results/identity.log"
 grep -q 'shows=2 uniqueShowIds=2 conflictingShowIds=0 airings=2' "$out/test-results/identity.log"
 grep -q 'showIdDescriptions=0 showIdBonus=0 ids=\[EP1KbtI40002, EP2YRXUU0001\]' "$out/test-results/identity.log"
+
+tmdb_off_work="$(mktemp -d)"
+tmdb_on_work="$(mktemp -d)"
+cp "$root/tests/fixtures/series-season-episode.xml" "$tmdb_off_work/identity.xml"
+cp "$root/tests/fixtures/series-season-episode.xml" "$tmdb_on_work/identity.xml"
+printf 'provider.name=TMDB Off\nprovider.id=999\nxmltv.files=%s\nxmltv.tmdb.enrich=false\nlog.configuration=false\nlog.channel=false\nlog.show=false\n' \
+  "$tmdb_off_work/identity.xml" > "$tmdb_off_work/tmdb-off.xmltv.properties"
+printf 'provider.name=TMDB On\nprovider.id=999\nxmltv.files=%s\nxmltv.tmdb.enrich=true\nlog.configuration=false\nlog.channel=false\nlog.show=false\n' \
+  "$tmdb_on_work/identity.xml" > "$tmdb_on_work/tmdb-on.xmltv.properties"
+(cd "$tmdb_off_work"; java -Dxmltv.test.currentTimeMillis=1787659500000 \
+  -classpath "$out/test-classes:$out/classes:$sage_jar" xmltv.ImporterHarness tmdb-off.xml) \
+  | tee "$out/test-results/tmdb-off.log"
+(cd "$tmdb_on_work"; java -Dxmltv.test.currentTimeMillis=1787659500000 \
+  -classpath "$out/test-classes:$out/classes:$sage_jar" xmltv.ImporterHarness tmdb-on.xml) \
+  | tee "$out/test-results/tmdb-on.log"
+grep -q 'tmdbEnriched=0' "$out/test-results/tmdb-off.log"
+grep -q 'tmdbEnriched=2' "$out/test-results/tmdb-on.log"
+tmdb_off_ids="$(sed -n 's/.* ids=\(\[[^]]*\]\) calls=.*/\1/p' "$out/test-results/tmdb-off.log")"
+tmdb_on_ids="$(sed -n 's/.* ids=\(\[[^]]*\]\) calls=.*/\1/p' "$out/test-results/tmdb-on.log")"
+test -n "$tmdb_off_ids" && test "$tmdb_off_ids" = "$tmdb_on_ids"
+rm -rf "$tmdb_off_work" "$tmdb_on_work"
+echo '[PASS] TMDB enrichment is opt-in, fill-only, fail-open, deduplicated, and Show-ID stable' \
+  | tee -a "$out/test-results/tests.log"
 
 v2_work="$(mktemp -d)"
 cp "$root/tests/fixtures/series-season-episode.xml" "$v2_work/identity.xml"

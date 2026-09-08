@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added disabled-by-default TMDB enrichment through the standalone
+  `opensagetv-vibe-tmdb` public facade. It fills only missing programme fields,
+  bounds and deduplicates lookups, keeps Show IDs stable, and fails open when
+  the service is absent, stopped, offline, rate-limited, ambiguous, or returns
+  no match. Unit and end-to-end TMDB-off/on import regressions pass.
+
 - Replaced private commissioning examples with generic OTA/IPTV profiles and
   synthetic paths before public release; no feed, credentials, schedules,
   logs, or appdata are distributed.

@@ -117,6 +117,26 @@ The audit compares exact legacy IDs with the opt-in v2 IDs and reports
 collisions without writing SageTV data. It is read-only by default; add
 `--map FILE --write-map` only when intentionally creating a v2 mapping.
 
+## Optional TMDB enrichment
+
+The importer can fill missing programme metadata through the separately
+installed `opensagetv-vibe-tmdb` service:
+
+```properties
+xmltv.tmdb.enrich=true
+xmltv.tmdb.max_lookups_per_import=250
+```
+
+This is disabled by default. XMLTV-supplied values always win, and Show IDs
+are resolved before enrichment so enabling or disabling TMDB cannot change
+favourites, watched history, or programme identity. Lookups are deduplicated
+and bounded per import. A missing, stopped, unconfigured, offline, or
+rate-limited TMDB plugin never aborts an otherwise successful XMLTV import.
+The XMLTV plugin accesses only the public TMDB service facade; it does not read
+credentials or the SQLite cache directly.
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
+
 ## Feed acquisition and parsing
 
 `xmltv.files` accepts local paths, `file:` URLs, and HTTP(S) URLs. Remote feeds

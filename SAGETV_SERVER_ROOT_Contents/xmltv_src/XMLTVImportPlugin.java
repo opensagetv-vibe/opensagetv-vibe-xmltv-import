@@ -281,6 +281,8 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 	private String initProviderId;
 	//Generated Show-ID strategy and persistent v2 mapping state.
 	private ShowIdGenerator showIdGenerator;
+	//Optional fail-open metadata consumer; owns no credentials, HTTP, or cache.
+	private TmdbEnricher tmdbEnricher;
 	private ImportResult importResult;
 	private XmltvConfiguration typedConfiguration;
 	
@@ -316,6 +318,8 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		defaults.put("xmltv.show_id.strategy", ShowIdGenerator.LEGACY);
 		defaults.put("xmltv.show_id.v2.map_file", ShowIdGenerator.DEFAULT_V2_MAP_FILE);
 		defaults.put("xmltv.show_id.display", "none");
+		defaults.put("xmltv.tmdb.enrich", "false");
+		defaults.put("xmltv.tmdb.max_lookups_per_import", "250");
 		defaults.put("xmltv.download.connect_timeout_ms", "10000");
 		defaults.put("xmltv.download.read_timeout_ms", "30000");
 		defaults.put("xmltv.download.max_bytes", "268435456");
@@ -596,6 +600,8 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
 		log("Show-ID strategy: " + this.showIdGenerator.getStrategy()
 				+ (ShowIdGenerator.V2.equals(this.showIdGenerator.getStrategy())
 						? "; mapping file: " + new File(showIdMapFile).getAbsolutePath() : ""));
+		this.tmdbEnricher = TmdbEnricher.create(aConfiguration);
+		log(this.tmdbEnricher.summary());
 
         this.init.maxStars = getIntProperty(aConfiguration, "max.stars");
 
@@ -659,6 +665,10 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
      * Exit for a configuration.
      */
     private final void exitConfiguration() {
+		if (this.tmdbEnricher != null) {
+			log(this.tmdbEnricher.summary());
+			this.tmdbEnricher = null;
+		}
 		if (this.showIdGenerator != null) {
 			try {
 				this.showIdGenerator.flush();
@@ -2419,6 +2429,17 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
                     // The show is now colored.
                 }
 
+				// Resolve the existing identity before optional enrichment. This is
+				// the invariant that keeps Show IDs, favourites, and watched history
+				// identical when TMDB is toggled or temporarily unavailable.
+				String identityCategory = categories.size() > 0 ? categories.get(0) : null;
+				ShowIdGenerator.Result showIdentity = this.showIdGenerator.generate(
+						this.show, identityCategory, this.channel);
+				String showId = showIdentity.getExternalId();
+				if (this.tmdbEnricher != null) {
+					this.tmdbEnricher.enrichMissing(this.show, categories, identityCategory);
+				}
+
                 // Check for rerun
                 if (!this.show.is_rerun) {
                     if (this.init.rerunAfterDate >= 0
@@ -2576,9 +2597,6 @@ public final class XMLTVImportPlugin implements sage.EPGImportPlugin,
                     bonus.add(this.show.parts + " parts");
                 }
 
-				ShowIdGenerator.Result showIdentity = this.showIdGenerator.generate(
-						this.show, category, this.channel);
-				String showId = showIdentity.getExternalId();
 				String showIdText = "Show ID: " + showId;
 				if (this.init.ShowIdDisplay.equals("description")) {
 					desc = desc == null || desc.length() == 0

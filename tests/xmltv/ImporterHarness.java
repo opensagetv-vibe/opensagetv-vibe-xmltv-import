@@ -17,6 +17,7 @@ public final class ImporterHarness {
     final Set<String> conflicts = new HashSet<>();
     final Set<String> showIds = new TreeSet<>();
     final long[] displayed = new long[2];
+    final long[] tmdbEnriched = new long[1];
     final int[] lineupStations = new int[]{-1};
     EPGDBPublic2 db = (EPGDBPublic2) Proxy.newProxyInstance(
         ImporterHarness.class.getClassLoader(), new Class<?>[]{EPGDBPublic2.class}, (p,m,a) -> {
@@ -33,6 +34,12 @@ public final class ImporterHarness {
             if (a[11] instanceof String[]) {
               for (String bonus : (String[])a[11]) if (marker.equals(bonus)) displayed[1]++;
             }
+            // The importer derives a programme year from the XMLTV airing date
+            // before optional enrichment. TMDB is deliberately fill-only, so
+            // that existing value must not be replaced by the synthetic 2024
+            // response. Count only fields that were actually missing.
+            if ("Episode description".equals(a[2])
+                && "en".equals(a[13])) tmdbEnriched[0]++;
           } else if ("setLineup".equals(m.getName()) && a[1] instanceof Map) {
             lineupStations[0]=((Map<?,?>)a[1]).size();
           }
@@ -49,7 +56,7 @@ public final class ImporterHarness {
     long shows=calls.getOrDefault("addShowPublic2",0L)+calls.getOrDefault("addShowPublic",0L);
     long airings=calls.getOrDefault("addAiringPublic2",0L)+calls.getOrDefault("addAiringPublic",0L);
     Object displayedIds=showIds.size() <= 20 ? showIds : "[" + showIds.size() + " IDs]";
-    System.out.printf("result=%s channels=%d shows=%d uniqueShowIds=%d conflictingShowIds=%d airings=%d showIdDescriptions=%d showIdBonus=%d ids=%s calls=%s file=%s lineupStations=%d%n",ok,channels,shows,identities.size(),conflicts.size(),airings,displayed[0],displayed[1],displayedIds,calls,new File(args[0]).getName(),lineupStations[0]);
+    System.out.printf("result=%s channels=%d shows=%d uniqueShowIds=%d conflictingShowIds=%d airings=%d showIdDescriptions=%d showIdBonus=%d ids=%s calls=%s file=%s lineupStations=%d tmdbEnriched=%d%n",ok,channels,shows,identities.size(),conflicts.size(),airings,displayed[0],displayed[1],displayedIds,calls,new File(args[0]).getName(),lineupStations[0],tmdbEnriched[0]);
     if (!ok || channels==0) System.exit(2);
     if (shows != airings) System.exit(3);
   }

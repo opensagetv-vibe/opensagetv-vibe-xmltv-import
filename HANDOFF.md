@@ -43,6 +43,15 @@ The new boundaries are `XmltvConfiguration`, `FeedDownloader`,
 `ShowIdAudit`. See `docs/XMLTV_MODERNIZATION.md` for design and regression
 coverage. The build currently emits no unchecked raw-collection warnings.
 
+An optional, disabled-by-default `TmdbEnricher` now fills only missing
+programme metadata through the public facade of the standalone
+`opensagetv-vibe-tmdb` plugin. It owns no credential, HTTP, or SQLite behavior.
+The importer creates the legacy/v2 Show ID before enrichment, deduplicates and
+bounds requests, and treats missing service, no match, ambiguity, rate limit,
+offline state, and request failure as non-fatal. Unit tests and an end-to-end
+TMDB-off/on import prove that source values win, both synthetic programmes are
+enriched only when enabled, and their exact Show IDs do not change.
+
 Version 3.5 adds optional configuration profiles without changing legacy
 resolution when `xmltv.profile` is absent. Profiles and `common.properties`
 live beside `Sage.properties`. Resolution order is built-in defaults, ordinary
@@ -91,6 +100,10 @@ The version 3.5 local suite passes secure acquisition/parser tests, provider
 reload, failure injection, metadata mapping, multi-source imports, Show-ID
 audit/identity tests, profile compatibility/precedence/auto generation, channel
 logos, and a generated 500-channel stress lineup.
+The same suite also passes the optional TMDB adapter unit and full-import
+identity/fail-open gates. A live credentialed programme-facade smoke test is
+owned and passed by the standalone TMDB project; no private credential enters
+this repository or its artifacts.
 Private corpus files are not retained. Their earlier results are documented in
 `docs/PRIVATE_CORPUS_TEST_REPORT.md` and must not be presented as a 3.5 replay.
 
