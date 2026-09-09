@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Updated repository CI to the current Node 24-based
+  `actions/checkout@v7` release.
 - Added disabled-by-default TMDB enrichment through the standalone
   `opensagetv-vibe-tmdb` public facade. It fills only missing programme fields,
   bounds and deduplicates lookups, keeps Show IDs stable, and fails open when
