@@ -11,12 +11,15 @@ permissions:
 
 jobs:
   source-contract:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - name: Validate source layout and scripts
         run: |
           set -euo pipefail
+          test -x dev.sh
+          test -x update.sh
+          test -x scripts/build.sh
           find . -type f -name '*.sh' -not -path './.git/*' -print0 | xargs -0 bash -n
           test -f LICENSE
           test -f THIRD_PARTY_NOTICES.md

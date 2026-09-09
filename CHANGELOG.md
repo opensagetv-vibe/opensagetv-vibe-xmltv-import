@@ -5,6 +5,9 @@
 - Updated repository CI to the current Node 24-based
   `actions/checkout@v7` release. The private-fixture scan excludes its own
   workflow source so the forbidden-pattern expression cannot self-match.
+  The workflow runner is pinned to Ubuntu 24.04 for reproducibility.
+  Documented Linux workflow/build entry points now carry executable Git
+  metadata, enforced by repository CI.
 - Added disabled-by-default TMDB enrichment through the standalone
   `opensagetv-vibe-tmdb` public facade. It fills only missing programme fields,
   bounds and deduplicates lookups, keeps Show IDs stable, and fails open when
