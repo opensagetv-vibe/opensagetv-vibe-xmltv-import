@@ -23,4 +23,4 @@ jobs:
           test -f SAGETV_SERVER_ROOT_Contents/xmltv_src/XMLTVImportPlugin.java
           test -f SAGETV_SERVER_ROOT_Contents/xmltv_OTA_Local.profile
           ! grep -R -n -E '192\.168\.|xmltv_60177|nyplayer_epgdata' \
-            --exclude-dir=.git --exclude-dir=artifacts --exclude-dir=output .
+            --exclude-dir=.git --exclude-dir=.github --exclude-dir=artifacts --exclude-dir=output .
