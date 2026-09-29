@@ -10,6 +10,12 @@ bounded/normalized logo handling, and graceful failure without server crashes.
 Never package feed credentials, downloaded schedules, SageTV appdata, or logs.
 Do not create per-version/prompt/review documentation.
 
+Release validation is impact-based: rerun only compile, unit, contract,
+packaging, integration, and physical gates that the release changes could
+affect. Do not repeat unrelated completed gates. Run the full gate suite only
+when the user explicitly requests it or a broad dependency/architecture change
+requires it, and document that reason plus the selected gates.
+
 
 ## Stock-server test-control policy
 
