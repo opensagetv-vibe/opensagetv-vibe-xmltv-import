@@ -1,7 +1,13 @@
 # OpenSageTV Vibe XMLTV Import tasks
 
-This is the only active XMLTV backlog. Completed work is removed and recorded
-in `CHANGELOG.md` and `HANDOFF.md`.
+> **Pre-commit task maintenance:** Immediately before every repository commit, move
+> completed `[x]` items out of active sections and into
+> `## Checklist change ledger`. Preserve IDs, evidence, and context; never
+> discard completion history. Active sections contain unchecked work only.
+
+This is the only active XMLTV backlog. Completed work moves to the checklist
+change ledger; release evidence is also recorded in `CHANGELOG.md` and
+`HANDOFF.md`.
 
 - [ ] Replace Vibe Core's automatic XMLTV importer discovery/property repair
   with a stock-compatible SageTV Standard-plugin wrapper. Registration or
@@ -14,3 +20,5 @@ in `CHANGELOG.md` and `HANDOFF.md`.
   supported sample feeds and record lineup/logo/ShowID results.
 - [ ] Add any newly encountered provider-specific parsing behavior only with a
   redacted committed fixture and regression test.
+
+## Checklist change ledger

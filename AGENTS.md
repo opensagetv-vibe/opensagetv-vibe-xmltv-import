@@ -2,7 +2,8 @@
 
 Read `README.md`, `HANDOFF.md`, `TASKS.md`, `WORKFLOW.md`, and
 `docs/XMLTV_MODERNIZATION.md` first. `TASKS.md` is the sole local backlog;
-remove completed work and update `CHANGELOG.md`/`HANDOFF.md` immediately.
+move completed work to its checklist change ledger and update
+`CHANGELOG.md`/`HANDOFF.md` immediately.
 
 Preserve license-free provider discovery, existing `xmltv.properties`
 compatibility, profile precedence, stable ShowID mappings, secure XML parsing,
@@ -30,3 +31,13 @@ requires it, and document that reason plus the selected gates.
   expressed through the stock plugin/API boundary. Document the proven API
   gap, keep the extension optional and negotiated with a safe stock fallback,
   and verify older clients and installations remain unaffected.
+
+## Pre-commit task-list maintenance
+
+Immediately before every repository commit, clean `TASKS.md`: move every
+completed `[x]` item out of the active task sections and into
+`## Checklist change ledger`. Preserve stable IDs, acceptance evidence, order,
+and enough source/parent context to understand the result. Never delete
+completion history. Active task sections must contain unchecked work only;
+checked boxes may appear only inside the checklist change ledger. Regenerate
+the project manifest when the repository tracks one.
